@@ -1,0 +1,66 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# PyPI Distribution
+dist/
+build/
+*.egg-info/
+MANIFEST
+
+# Project specific
+old_files/
+legacy_tests/
+examples_old/
+tes/
+full_screenshot.png
+*.png.bak
+
+# Test files - user specific
+test_appium.py
+
+# Claude Code
+.claude/

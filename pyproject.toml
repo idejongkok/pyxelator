@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyxelator"
+version = "0.3.1"
+description = "Image-based automation for Selenium, Playwright & Appium - locate elements by screenshots"
+readme = "README.md"
+authors = [{name = "Aria Uno Suseno", email = "uno@idejongkok.com"}]
+maintainers = [{name = "Aria Uno Suseno"}]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Software Development :: Quality Assurance",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+]
+keywords = ["selenium", "playwright", "appium", "automation", "testing", "image-recognition", "opencv", "visual-testing", "mobile-automation"]
+requires-python = ">=3.10"
+dependencies = [
+    "opencv-python>=4.5.0",
+    "numpy>=1.19.0",
+]
+
+[project.optional-dependencies]
+selenium = ["selenium>=4.0.0"]
+playwright = ["playwright>=1.20.0"]
+appium = ["Appium-Python-Client>=2.0.0"]
+dev = [
+    "pytest>=7.0.0",
+    "selenium>=4.0.0",
+    "playwright>=1.20.0",
+    "Appium-Python-Client>=2.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/idejongkok/pyxelator"
+"Bug Reports" = "https://github.com/idejongkok/pyxelator/issues"
+Source = "https://github.com/idejongkok/pyxelator"
+Instagram = "https://instagram.com/idejongkok"
+
+[tool.setuptools]
+packages = ["pyxelator", "pyxelator.adapters"]
+package-data = {"pyxelator" = ["*.py"]}
