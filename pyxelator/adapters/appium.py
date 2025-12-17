@@ -16,7 +16,7 @@ def _get_screenshot(driver) -> bytes:
     return driver.get_screenshot_as_png()
 
 
-def find_app(driver, image: str, confidence: float = 0.7) -> bool:
+def find_app(driver, image: str, confidence: float = 0.7, verbose: bool = False) -> bool:
     """
     Check if element exists on the screen.
 
@@ -42,11 +42,21 @@ def find_app(driver, image: str, confidence: float = 0.7) -> bool:
         if find(driver, 'login_button.png'):
             print("Login button found!")
     """
+    import os
+    if not os.path.exists(image):
+        print(f"[Pyxelator ERROR] Template image file not found: '{image}'")
+        return False
+
     screenshot = _get_screenshot(driver)
-    return find_image_in_screenshot(screenshot, image, confidence) is not None
+    result = find_image_in_screenshot(screenshot, image, confidence) is not None
+
+    if not result and verbose:
+        print(f"[Pyxelator WARNING] Element not found: '{image}'")
+
+    return result
 
 
-def locate_app(driver, image: str, confidence: float = 0.7) -> Optional[Tuple[int, int]]:
+def locate_app(driver, image: str, confidence: float = 0.7, verbose: bool = False) -> Optional[Tuple[int, int]]:
     """
     Get element coordinates on the screen.
 
@@ -63,11 +73,21 @@ def locate_app(driver, image: str, confidence: float = 0.7) -> Optional[Tuple[in
         if coords:
             print(f"Button at position {coords}")
     """
+    import os
+    if not os.path.exists(image):
+        print(f"[Pyxelator ERROR] Template image file not found: '{image}'")
+        return None
+
     screenshot = _get_screenshot(driver)
-    return find_image_in_screenshot(screenshot, image, confidence)
+    result = find_image_in_screenshot(screenshot, image, confidence)
+
+    if result is None and verbose:
+        print(f"[Pyxelator WARNING] Element not found: '{image}'")
+
+    return result
 
 
-def click_app(driver, image: str, confidence: float = 0.7) -> bool:
+def click_app(driver, image: str, confidence: float = 0.7, debug: bool = False) -> bool:
     """
     Tap element identified by image template.
 
@@ -75,6 +95,7 @@ def click_app(driver, image: str, confidence: float = 0.7) -> bool:
         driver: Appium WebDriver instance
         image: Path to template image
         confidence: Match confidence 0.0-1.0 (default: 0.7)
+        debug: Print debug information (default: False)
 
     Returns:
         True if tapped successfully, False if not found
@@ -83,10 +104,21 @@ def click_app(driver, image: str, confidence: float = 0.7) -> bool:
         from pyxelator import click
 
         click(driver, 'submit_button.png')
+        click(driver, 'button.png', debug=True)
     """
+    import os
+    if not os.path.exists(image):
+        print(f"[Pyxelator ERROR] Template image file not found: '{image}'")
+        return False
+
     coords = locate_app(driver, image, confidence)
     if not coords:
+        print(f"[Pyxelator ERROR] Element not found: '{image}'")
+        print(f"[Pyxelator] Tip: Try lowering confidence or recapture at same device resolution")
         return False
+
+    if debug:
+        print(f"[Pyxelator] Element found at ({coords[0]}, {coords[1]})")
 
     x, y = coords
 
@@ -115,7 +147,7 @@ def click_app(driver, image: str, confidence: float = 0.7) -> bool:
             return False
 
 
-def fill_app(driver, image: str, text: str, confidence: float = 0.7) -> bool:
+def fill_app(driver, image: str, text: str, confidence: float = 0.7, debug: bool = False) -> bool:
     """
     Fill text into input element identified by image template.
 
@@ -124,6 +156,7 @@ def fill_app(driver, image: str, text: str, confidence: float = 0.7) -> bool:
         image: Path to template image
         text: Text to fill into the element
         confidence: Match confidence 0.0-1.0 (default: 0.7)
+        debug: Print debug information (default: False)
 
     Returns:
         True if filled successfully, False if not found
@@ -132,11 +165,21 @@ def fill_app(driver, image: str, text: str, confidence: float = 0.7) -> bool:
         from pyxelator import fill
 
         fill(driver, 'email_field.png', 'user@example.com')
-        fill(driver, 'password_field.png', 'secret123')
+        fill(driver, 'password_field.png', 'secret123', debug=True)
     """
+    import os
+    if not os.path.exists(image):
+        print(f"[Pyxelator ERROR] Template image file not found: '{image}'")
+        return False
+
     coords = locate_app(driver, image, confidence)
     if not coords:
+        print(f"[Pyxelator ERROR] Element not found: '{image}'")
+        print(f"[Pyxelator] Tip: Try lowering confidence or recapture at same device resolution")
         return False
+
+    if debug:
+        print(f"[Pyxelator] Element found at ({coords[0]}, {coords[1]})")
 
     x, y = coords
 

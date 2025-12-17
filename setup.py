@@ -10,7 +10,7 @@ long_description = (this_directory / "README.md").read_text(encoding='utf-8')
 
 setup(
     name='pyxelator',
-    version='0.3.1',
+    version='0.4.0',
     author='Aria Uno Suseno',
     author_email='uno@idejongkok.com',
     description='Image-based automation for Selenium, Playwright & Appium - locate elements by screenshots',

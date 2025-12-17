@@ -27,7 +27,7 @@ Universal API - Works with any automation framework:
 Note: Appium support is currently in beta.
 
 Author: Aria Uno Suseno (@idejongkok)
-Version: 0.3.1
+Version: 0.4.0
 License: MIT
 """
 
@@ -40,9 +40,9 @@ from . import adapters
 # Import core for advanced usage
 from .core import find_image_in_screenshot, check_image_exists
 
-__version__ = '0.3.1'
+__version__ = '0.4.0'
 __author__ = 'Aria Uno Suseno'
-__email__ = 'contact@idejongkok.com'
+__email__ = 'uno@idejongkok.com'
 
 # Public API
 __all__ = [
@@ -135,7 +135,7 @@ def locate(driver, image: str, confidence: float = 0.7) -> Optional[Tuple[int, i
         return adapters.selenium.locate(driver, image, confidence)
 
 
-def click(driver, image: str, confidence: float = 0.7) -> bool:
+def click(driver, image: str, confidence: float = 0.7, retries: int = 3, delay: float = 0.5, debug: bool = False) -> bool:
     """
     Click element identified by image template.
 
@@ -146,6 +146,9 @@ def click(driver, image: str, confidence: float = 0.7) -> bool:
         driver: Selenium WebDriver, Playwright Page, or Appium driver
         image: Path to template image
         confidence: Match confidence 0.0-1.0 (default: 0.7)
+        retries: Number of retry attempts (default: 3, Playwright/Selenium only)
+        delay: Delay between retries in seconds (default: 0.5, Playwright/Selenium only)
+        debug: Print debug information (default: False)
 
     Returns:
         True if clicked successfully, False if not found
@@ -153,18 +156,19 @@ def click(driver, image: str, confidence: float = 0.7) -> bool:
     Example:
         # Same code works for Selenium, Playwright, or Appium!
         click(driver, 'submit_button.png')
+        click(driver, 'button.png', retries=5, delay=1.0, debug=True)
     """
     driver_type = detect_driver_type(driver)
 
     if driver_type == 'playwright':
-        return adapters.playwright.click_pw(driver, image, confidence)
+        return adapters.playwright.click_pw(driver, image, confidence, retries, delay, debug)
     elif driver_type == 'appium':
-        return adapters.appium.click_app(driver, image, confidence)
+        return adapters.appium.click_app(driver, image, confidence, debug)
     else:  # selenium
-        return adapters.selenium.click(driver, image, confidence)
+        return adapters.selenium.click(driver, image, confidence, retries, delay, debug)
 
 
-def fill(driver, image: str, text: str, confidence: float = 0.7) -> bool:
+def fill(driver, image: str, text: str, confidence: float = 0.7, debug: bool = False) -> bool:
     """
     Fill text into input element identified by image template.
 
@@ -176,6 +180,7 @@ def fill(driver, image: str, text: str, confidence: float = 0.7) -> bool:
         image: Path to template image
         text: Text to fill into the element
         confidence: Match confidence 0.0-1.0 (default: 0.7)
+        debug: Print debug information (default: False)
 
     Returns:
         True if filled successfully, False if not found
@@ -183,16 +188,16 @@ def fill(driver, image: str, text: str, confidence: float = 0.7) -> bool:
     Example:
         # Same code works for Selenium, Playwright, or Appium!
         fill(driver, 'email_field.png', 'user@example.com')
-        fill(driver, 'password_field.png', 'secret123')
+        fill(driver, 'password_field.png', 'secret123', debug=True)
     """
     driver_type = detect_driver_type(driver)
 
     if driver_type == 'playwright':
-        return adapters.playwright.fill_pw(driver, image, text, confidence)
+        return adapters.playwright.fill_pw(driver, image, text, confidence, debug)
     elif driver_type == 'appium':
-        return adapters.appium.fill_app(driver, image, text, confidence)
+        return adapters.appium.fill_app(driver, image, text, confidence, debug)
     else:  # selenium
-        return adapters.selenium.fill(driver, image, text, confidence)
+        return adapters.selenium.fill(driver, image, text, confidence, debug)
 
 
 # Alias

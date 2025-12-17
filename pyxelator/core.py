@@ -58,13 +58,23 @@ def find_image_in_screenshot(
         if h > img_h or w > img_w:
             return None
 
-        # Template matching using TM_CCOEFF_NORMED (best for accuracy)
+        # Try TM_CCOEFF_NORMED first (most accurate)
         result = cv2.matchTemplate(img_gray, template, cv2.TM_CCOEFF_NORMED)
         _, max_val, _, max_loc = cv2.minMaxLoc(result)
 
         if max_val >= confidence:
-            # Return center coordinates
+            # Primary method passed, return the match
             return (max_loc[0] + w // 2, max_loc[1] + h // 2)
+
+        # Fallback: Try TM_CCORR_NORMED with stricter threshold
+        # CCORR is more lenient, so we require higher confidence
+        result_alt = cv2.matchTemplate(img_gray, template, cv2.TM_CCORR_NORMED)
+        _, max_val_alt, _, max_loc_alt = cv2.minMaxLoc(result_alt)
+
+        # For CCORR, require higher confidence to avoid false positives
+        ccorr_threshold = max(confidence + 0.1, 0.85)  # At least 0.85 or confidence+0.1
+        if max_val_alt >= ccorr_threshold:
+            return (max_loc_alt[0] + w // 2, max_loc_alt[1] + h // 2)
 
         return None
 

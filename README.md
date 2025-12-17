@@ -117,23 +117,40 @@ if coords:
 
 ---
 
-#### `click(driver, image, confidence=0.7)`
+#### `click(driver, image, confidence=0.7, retries=3, delay=0.5, debug=False)`
 Click element by image.
 
 ```python
 click(driver, 'submit_button.png')
+click(driver, 'button.png', retries=5, delay=1.0, debug=True)
 ```
+
+**Parameters:**
+- `driver` - Selenium WebDriver, Playwright Page, or Appium driver
+- `image` - Path to template image
+- `confidence` - Match confidence 0.0-1.0 (default: 0.7)
+- `retries` - Number of retry attempts (default: 3, Selenium/Playwright only)
+- `delay` - Delay between retries in seconds (default: 0.5, Selenium/Playwright only)
+- `debug` - Print debug information (default: False)
 
 **Returns:** `True` if clicked, `False` if not found
 
 ---
 
-#### `fill(driver, image, text, confidence=0.7)`
+#### `fill(driver, image, text, confidence=0.7, debug=False)`
 Fill text into element.
 
 ```python
 fill(driver, 'email_field.png', 'user@example.com')
+fill(driver, 'password.png', 'secret123', debug=True)
 ```
+
+**Parameters:**
+- `driver` - Selenium WebDriver, Playwright Page, or Appium driver
+- `image` - Path to template image
+- `text` - Text to fill into the element
+- `confidence` - Match confidence 0.0-1.0 (default: 0.7)
+- `debug` - Print debug information (default: False)
 
 **Returns:** `True` if filled, `False` if not found
 
@@ -330,26 +347,93 @@ Appium support is functional but still in beta. Known considerations:
 
 ---
 
+## Error Handling & Debugging
+
+### Debug Mode (v0.4.0+)
+
+Enable detailed logging to troubleshoot issues:
+
+```python
+# Click with debug mode
+click(driver, 'button.png', debug=True)
+
+# Fill with debug mode
+fill(driver, 'input.png', 'text', debug=True)
+```
+
+**Debug output shows:**
+- File existence validation
+- Element search attempts
+- Coordinates found
+- Clickability/fillability validation
+- Success/failure details
+
+### Common Errors & Solutions
+
+#### File Not Found
+```
+[Pyxelator ERROR] Template image file not found: 'button.png'
+```
+**Solution:** Check file path, use absolute path, or verify file exists
+
+#### Element Not Found
+```
+[Pyxelator ERROR] Element not found after 3 attempts: 'button.png'
+```
+**Solutions:**
+1. Lower confidence: `click(driver, 'button.png', confidence=0.6)`
+2. Recapture template at same window size
+3. Use debug mode: `click(driver, 'button.png', debug=True)`
+
+#### Element Not Clickable
+```
+[Pyxelator ERROR] Element is not clickable
+[Pyxelator] Found: <DIV> "Some text..."
+```
+**Solution:** Recapture a smaller screenshot focused on the actual button
+
+#### Element Not Fillable
+```
+[Pyxelator ERROR] Element is not fillable
+[Pyxelator] Found: <BUTTON> "Submit"
+```
+**Solution:** Ensure template captures an input/textarea field, not a button
+
+### Retry Mechanism
+
+Configure retry attempts for flaky elements:
+
+```python
+# Retry up to 5 times with 1 second delay
+click(driver, 'button.png', retries=5, delay=1.0)
+```
+
+---
+
 ## Troubleshooting
 
 ### Element Not Found?
 
-1. **Check template size** - Must be smaller than viewport
-2. **Lower confidence** - Try `confidence=0.6`
-3. **Verify element visibility** - Element must be on screen
-4. **Check template quality** - Use clear screenshots
+1. **Use debug mode** - `click(driver, 'button.png', debug=True)`
+2. **Check template size** - Must be smaller than viewport
+3. **Lower confidence** - Try `confidence=0.6`
+4. **Verify element visibility** - Element must be on screen
+5. **Check template quality** - Use clear screenshots
+6. **Window size consistency** - Capture templates at same window size as tests
 
 ### Click Not Working?
 
-1. **Verify element is clickable**
-2. **Add delay** before clicking - `time.sleep(1)`
-3. **Check if element is covered** by other elements
+1. **Enable debug mode** to see what's happening
+2. **Verify element is clickable** (Pyxelator now validates this automatically)
+3. **Add retry attempts** - `click(driver, 'button.png', retries=5)`
+4. **Check if element is covered** by other elements
 
 ### Fill Not Working?
 
-1. **Ensure element is input field**
-2. **Check if field needs to be focused first**
-3. **Try clicking before filling**
+1. **Enable debug mode** for detailed error info
+2. **Ensure element is input field** (Pyxelator validates this)
+3. **Try clicking before filling** to focus the element
+4. **Recapture template** focused on input field, not label
 
 ---
 
@@ -406,14 +490,30 @@ pytest -v
 
 ---
 
+## Contributors
+
+**Author & Maintainer:**
+- Aria Uno Suseno ([@idejongkok](https://instagram.com/idejongkok))
+
+**Contributors:**
+- Eri Permadi
+- Yali Yanto Silitonga
+
+**Testers:**
+- Eri Permadi
+- Yali Yanto Silitonga
+
+---
+
 ## Contributing
 
 Contributions welcome! Please:
 
-1. Fork the repository
-2. Create feature branch
-3. Add tests
-4. Submit pull request
+1. Contact me first on Instagram @idejongkok
+2. Fork the repository
+3. Create feature branch
+4. Add tests
+5. Submit pull request
 
 ---
 
@@ -423,15 +523,22 @@ MIT License - see LICENSE file
 
 ---
 
-## Author
-
-Created with for the automation community
-
----
-
 ## Changelog
 
-### v0.3.1 (Latest)
+### v0.4.0 (Latest)
+- **NEW:** Comprehensive error handling for all adapters (Selenium, Playwright, Appium)
+- **NEW:** File validation - checks if template image exists before processing
+- **NEW:** Clickability detection - validates element is clickable before clicking (Selenium & Playwright)
+- **NEW:** Fillability detection - validates element is fillable before filling text (Selenium & Playwright)
+- **NEW:** Debug mode - detailed logging with `debug=True` parameter for troubleshooting
+- **NEW:** Retry mechanism - configurable retry attempts for Selenium & Playwright (default: 3 retries)
+- **NEW:** React compatibility - proper event handling for React form inputs
+- **IMPROVED:** Clear, actionable error messages with troubleshooting tips
+- **IMPROVED:** Smart element detection - finds clickable/fillable parent elements
+- **DOCS:** Complete error handling guide (ERROR_HANDLING_GUIDE.md)
+- **DOCS:** Updated implementation status for all adapters
+
+### v0.3.1
 - **Beta:** Appium support for mobile automation
 - W3C Actions API integration for mobile gestures
 - Enhanced template matching algorithm
@@ -455,9 +562,14 @@ Created with for the automation community
 ## Support
 
 - Issues: [GitHub Issues](https://github.com/idejongkok/pyxelator/issues)
-- Docs: [Full Documentation](https://pyxelator.readthedocs.io)
-- Discussions: [GitHub Discussions](https://github.com/yourusername/pyxelator/discussions)
+- Docs: [Full Documentation](https://pyxelator.pages.dev)
+- Discussions: [GitHub Discussions](https://github.com/idejongkok/pyxelator/discussions)
 
 ---
+more question find me on:
+
+- Instagram: [https://instagram.com/idejongkok](https://instagram.com/idejongkok)
+- YouTube: [https://youtube.com/idejongkok](https://youtube.com/idejongkok)
+- Website: [https://idejongkok.com](https://idejongkok.com)
 
 **Happy Automating! from idejongkok with love**

@@ -61,6 +61,9 @@ full_screenshot.png
 
 # Test files - user specific
 test_appium.py
+test_pyxelator_playwright.py
+test_pyxelator_selenium.py
+templates/
 
 # Claude Code
 .claude/

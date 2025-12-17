@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+requires = ["setuptools>=45,<77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyxelator"
-version = "0.3.1"
+version = "0.4.0"
 description = "Image-based automation for Selenium, Playwright & Appium - locate elements by screenshots"
 readme = "README.md"
 authors = [{name = "Aria Uno Suseno", email = "uno@idejongkok.com"}]
