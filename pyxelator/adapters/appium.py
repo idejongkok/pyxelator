@@ -8,12 +8,59 @@ Note: Appium support is currently in beta. Please report any issues on GitHub.
 """
 
 from typing import Tuple, Optional
-from ..core import find_image_in_screenshot
+from ..core import find_image_in_screenshot, locate_match
+from ..utils import explain_miss, to_css_pixels
 
 
 def _get_screenshot(driver) -> bytes:
     """Get screenshot from Appium driver."""
     return driver.get_screenshot_as_png()
+
+
+def _viewport_width(driver) -> Optional[float]:
+    """
+    Width of the driver's tap coordinate space.
+
+    On iOS this is in points while the screenshot is in pixels (2x or 3x), so
+    raw screenshot coordinates would tap well outside the intended element.
+    On Android the two usually match and the resulting scale is 1.0.
+    """
+    try:
+        return driver.get_window_size()['width']
+    except Exception:
+        return None
+
+
+def _touch_sequence(driver):
+    """
+    Build a W3C touch action sequence.
+
+    The only gesture API available. Appium-Python-Client 3.0 removed
+    TouchAction, so anything built on it fails to import.
+    """
+    from selenium.webdriver.common.actions import interaction
+    from selenium.webdriver.common.actions.action_builder import ActionBuilder
+    from selenium.webdriver.common.actions.pointer_input import PointerInput
+
+    return ActionBuilder(driver, mouse=PointerInput(interaction.POINTER_TOUCH, "touch"))
+
+
+def _tap(driver, x: int, y: int, debug: bool = False) -> bool:
+    """Tap a point in the driver's coordinate space."""
+    try:
+        actions = _touch_sequence(driver)
+        actions.pointer_action.move_to_location(x, y)
+        actions.pointer_action.pointer_down()
+        actions.pointer_action.pause(0.1)
+        actions.pointer_action.pointer_up()
+        actions.perform()
+        return True
+    except Exception as e:
+        print(f"[Pyxelator ERROR] Tap at ({x}, {y}) failed: {type(e).__name__}: {e}")
+        if debug:
+            print(f"[Pyxelator] Gestures use the W3C Actions protocol, which needs "
+                  f"an Appium 2.0+ server")
+        return False
 
 
 def find_app(driver, image: str, confidence: float = 0.7, verbose: bool = False) -> bool:
@@ -66,7 +113,8 @@ def locate_app(driver, image: str, confidence: float = 0.7, verbose: bool = Fals
         confidence: Match confidence 0.0-1.0 (default: 0.7)
 
     Returns:
-        (x, y) center coordinates if found, None otherwise
+        (x, y) center coordinates in the driver's tap coordinate space if
+        found, None otherwise. On iOS these differ from raw screenshot pixels.
 
     Example:
         coords = locate(driver, 'button.png')
@@ -79,7 +127,8 @@ def locate_app(driver, image: str, confidence: float = 0.7, verbose: bool = Fals
         return None
 
     screenshot = _get_screenshot(driver)
-    result = find_image_in_screenshot(screenshot, image, confidence)
+    match = locate_match(screenshot, image, confidence)
+    result = None if match is None else to_css_pixels(match, _viewport_width(driver))
 
     if result is None and verbose:
         print(f"[Pyxelator WARNING] Element not found: '{image}'")
@@ -114,7 +163,8 @@ def click_app(driver, image: str, confidence: float = 0.7, debug: bool = False) 
     coords = locate_app(driver, image, confidence)
     if not coords:
         print(f"[Pyxelator ERROR] Element not found: '{image}'")
-        print(f"[Pyxelator] Tip: Try lowering confidence or recapture at same device resolution")
+        for line in explain_miss(_get_screenshot(driver), image, confidence):
+            print(f"[Pyxelator] {line}")
         return False
 
     if debug:
@@ -122,29 +172,7 @@ def click_app(driver, image: str, confidence: float = 0.7, debug: bool = False) 
 
     x, y = coords
 
-    try:
-        # Modern W3C Actions API (Appium 2.0+)
-        from selenium.webdriver.common.actions import interaction
-        from selenium.webdriver.common.actions.action_builder import ActionBuilder
-        from selenium.webdriver.common.actions.pointer_input import PointerInput
-
-        actions = ActionBuilder(driver, mouse=PointerInput(interaction.POINTER_TOUCH, "touch"))
-        actions.pointer_action.move_to_location(x, y)
-        actions.pointer_action.pointer_down()
-        actions.pointer_action.pause(0.1)
-        actions.pointer_action.pointer_up()
-        actions.perform()
-        return True
-    except Exception:
-        # Fallback to legacy TouchAction API (Appium 1.x)
-        try:
-            from appium.webdriver.common.touch_action import TouchAction
-
-            action = TouchAction(driver)
-            action.tap(x=x, y=y).perform()
-            return True
-        except Exception:
-            return False
+    return _tap(driver, x, y, debug)
 
 
 def fill_app(driver, image: str, text: str, confidence: float = 0.7, debug: bool = False) -> bool:
@@ -175,7 +203,8 @@ def fill_app(driver, image: str, text: str, confidence: float = 0.7, debug: bool
     coords = locate_app(driver, image, confidence)
     if not coords:
         print(f"[Pyxelator ERROR] Element not found: '{image}'")
-        print(f"[Pyxelator] Tip: Try lowering confidence or recapture at same device resolution")
+        for line in explain_miss(_get_screenshot(driver), image, confidence):
+            print(f"[Pyxelator] {line}")
         return False
 
     if debug:
@@ -183,53 +212,43 @@ def fill_app(driver, image: str, text: str, confidence: float = 0.7, debug: bool
 
     x, y = coords
 
+    # Tap to focus the field first - send_keys goes to whatever is active.
+    if not _tap(driver, x, y, debug):
+        return False
+
+    # Give the on-screen keyboard time to appear and focus to settle.
+    import time
+    time.sleep(0.3)
+
     try:
-        # Modern W3C Actions API for tap
-        from selenium.webdriver.common.actions import interaction
-        from selenium.webdriver.common.actions.action_builder import ActionBuilder
-        from selenium.webdriver.common.actions.pointer_input import PointerInput
-
-        actions = ActionBuilder(driver, mouse=PointerInput(interaction.POINTER_TOUCH, "touch"))
-        actions.pointer_action.move_to_location(x, y)
-        actions.pointer_action.pointer_down()
-        actions.pointer_action.pause(0.1)
-        actions.pointer_action.pointer_up()
-        actions.perform()
-
-        # Small delay for keyboard to appear
-        import time
-        time.sleep(0.3)
-
-        # Send keys to active element
         active_element = driver.switch_to.active_element
         active_element.clear()
         active_element.send_keys(text)
         return True
-    except Exception:
-        # Fallback to legacy TouchAction API
-        try:
-            from appium.webdriver.common.touch_action import TouchAction
-            import time
-
-            # Tap to focus
-            action = TouchAction(driver)
-            action.tap(x=x, y=y).perform()
-
-            # Small delay for keyboard to appear
-            time.sleep(0.3)
-
-            # Send keys to active element
-            active_element = driver.switch_to.active_element
-            active_element.clear()
-            active_element.send_keys(text)
-            return True
-        except Exception:
-            return False
+    except Exception as e:
+        print(f"[Pyxelator ERROR] Could not type into the focused element: "
+              f"{type(e).__name__}: {e}")
+        if debug:
+            print(f"[Pyxelator] The tap landed at ({x}, {y}) but no text field took "
+                  f"focus. Your template may be matching a label rather than the "
+                  f"input itself.")
+        return False
 
 
-def swipe_app(driver, image: str, direction: str = "up", distance: int = 200, confidence: float = 0.7) -> bool:
+SWIPE_DIRECTIONS = ('up', 'down', 'left', 'right')
+
+
+def swipe_app(
+    driver,
+    image: str,
+    direction: str = "up",
+    distance: int = 200,
+    confidence: float = 0.7,
+    duration: float = 0.2,
+    debug: bool = False
+) -> bool:
     """
-    Swipe from element position.
+    Swipe starting from the element's position.
 
     Args:
         driver: Appium WebDriver instance
@@ -237,42 +256,83 @@ def swipe_app(driver, image: str, direction: str = "up", distance: int = 200, co
         direction: Swipe direction ('up', 'down', 'left', 'right')
         distance: Swipe distance in pixels (default: 200)
         confidence: Match confidence 0.0-1.0 (default: 0.7)
+        duration: Seconds spent travelling, held between press and release
+            (default: 0.2). Too fast reads as a fling rather than a drag;
+            raise it if the app does not react.
+        debug: Print debug information (default: False)
 
     Returns:
-        True if swiped successfully, False if not found
+        True if swiped successfully, False if the element was not found, the
+        direction is invalid, or the gesture failed
 
     Example:
         from pyxelator import swipe_app
 
-        # Swipe up from center of image
+        # Swipe up from the centre of the matched element
         swipe_app(driver, 'list_item.png', 'up', 300)
+
+    Note:
+        The swipe is clamped to the screen bounds - a swipe that would run off
+        the edge stops at it, since drivers reject out-of-bounds coordinates.
     """
+    import os
+    if not os.path.exists(image):
+        print(f"[Pyxelator ERROR] Template image file not found: '{image}'")
+        return False
+
+    if direction not in SWIPE_DIRECTIONS:
+        print(f"[Pyxelator ERROR] Invalid swipe direction: '{direction}'")
+        print(f"[Pyxelator] Expected one of: {', '.join(SWIPE_DIRECTIONS)}")
+        return False
+
     coords = locate_app(driver, image, confidence)
     if not coords:
+        print(f"[Pyxelator ERROR] Element not found: '{image}'")
+        for line in explain_miss(_get_screenshot(driver), image, confidence):
+            print(f"[Pyxelator] {line}")
         return False
 
     x, y = coords
 
-    # Calculate end point based on direction
-    direction_map = {
-        'up': (x, y - distance),
-        'down': (x, y + distance),
-        'left': (x - distance, y),
-        'right': (x + distance, y)
+    offsets = {
+        'up': (0, -distance),
+        'down': (0, distance),
+        'left': (-distance, 0),
+        'right': (distance, 0),
     }
+    dx, dy = offsets[direction]
+    end_x, end_y = x + dx, y + dy
 
-    if direction not in direction_map:
+    # Drivers reject off-screen coordinates
+    try:
+        size = driver.get_window_size()
+        end_x = max(0, min(end_x, size['width'] - 1))
+        end_y = max(0, min(end_y, size['height'] - 1))
+    except Exception:
+        pass
+
+    if (end_x, end_y) == (x, y):
+        print(f"[Pyxelator ERROR] Swipe would not move: already at the screen edge")
         return False
 
-    end_x, end_y = direction_map[direction]
+    if debug:
+        print(f"[Pyxelator] Swiping {direction} from ({x}, {y}) to ({end_x}, {end_y})")
 
     try:
-        from appium.webdriver.common.touch_action import TouchAction
-
-        action = TouchAction(driver)
-        action.press(x=x, y=y).wait(100).move_to(x=end_x, y=end_y).release().perform()
+        actions = _touch_sequence(driver)
+        actions.pointer_action.move_to_location(x, y)
+        actions.pointer_action.pointer_down()
+        actions.pointer_action.pause(duration)
+        actions.pointer_action.move_to_location(end_x, end_y)
+        actions.pointer_action.pause(0.1)
+        actions.pointer_action.pointer_up()
+        actions.perform()
         return True
-    except Exception:
+    except Exception as e:
+        print(f"[Pyxelator ERROR] Swipe failed: {type(e).__name__}: {e}")
+        if debug:
+            print(f"[Pyxelator] Gestures use the W3C Actions protocol, which needs "
+                  f"an Appium 2.0+ server")
         return False
 
 

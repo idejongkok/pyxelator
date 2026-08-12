@@ -27,7 +27,7 @@ Universal API - Works with any automation framework:
 Note: Appium support is currently in beta.
 
 Author: Aria Uno Suseno (@idejongkok)
-Version: 0.4.0
+Version: 0.5.0
 License: MIT
 """
 
@@ -38,9 +38,12 @@ from .utils import detect_driver_type
 from . import adapters
 
 # Import core for advanced usage
-from .core import find_image_in_screenshot, check_image_exists
+from .core import find_image_in_screenshot, check_image_exists, match_score
 
-__version__ = '0.4.0'
+# Appium-only gesture, re-exported so `from pyxelator import swipe_app` works.
+from .adapters.appium import swipe_app
+
+__version__ = '0.5.0'
 __author__ = 'Aria Uno Suseno'
 __email__ = 'uno@idejongkok.com'
 
@@ -53,9 +56,13 @@ __all__ = [
     'fill',
     'exists',
 
+    # Appium only
+    'swipe_app',
+
     # Advanced/Core functions
     'find_image_in_screenshot',
     'check_image_exists',
+    'match_score',
 
     # Legacy
     'Pyxelator',

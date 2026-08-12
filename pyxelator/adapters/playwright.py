@@ -6,13 +6,22 @@ in Playwright-based automation.
 """
 
 from typing import Tuple, Optional
-from ..core import find_image_in_screenshot
+from ..core import find_image_in_screenshot, locate_match
+from ..utils import explain_miss, to_css_pixels
 import time
 
 
 def _get_screenshot(page) -> bytes:
     """Get screenshot from Playwright Page."""
     return page.screenshot()
+
+
+def _viewport_width(page) -> Optional[float]:
+    """CSS width of the viewport, used to scale HiDPI screenshot coordinates."""
+    try:
+        return page.evaluate("() => window.innerWidth")
+    except Exception:
+        return None
 
 
 def find_pw(page, image: str, confidence: float = 0.7, verbose: bool = False) -> bool:
@@ -50,7 +59,8 @@ def find_pw(page, image: str, confidence: float = 0.7, verbose: bool = False) ->
 
     if not result and verbose:
         print(f"[Pyxelator WARNING] Element not found: '{image}'")
-        print(f"[Pyxelator] Tip: Try lowering confidence or recapture the template image")
+        for line in explain_miss(screenshot, image, confidence):
+            print(f"[Pyxelator] {line}")
 
     return result
 
@@ -66,7 +76,9 @@ def locate_pw(page, image: str, confidence: float = 0.7, verbose: bool = False) 
         verbose: Print warning if element not found (default: False)
 
     Returns:
-        (x, y) center coordinates if found, None otherwise
+        (x, y) center coordinates in CSS pixels if found, None otherwise.
+        These differ from raw screenshot pixels when the browser context sets
+        device_scale_factor.
 
     Example:
         coords = locate_pw(page, 'button.png')
@@ -79,11 +91,13 @@ def locate_pw(page, image: str, confidence: float = 0.7, verbose: bool = False) 
         return None
 
     screenshot = _get_screenshot(page)
-    result = find_image_in_screenshot(screenshot, image, confidence)
+    match = locate_match(screenshot, image, confidence)
+    result = None if match is None else to_css_pixels(match, _viewport_width(page))
 
     if result is None and verbose:
         print(f"[Pyxelator WARNING] Element not found: '{image}'")
-        print(f"[Pyxelator] Tip: Try lowering confidence or recapture the template image")
+        for line in explain_miss(screenshot, image, confidence):
+            print(f"[Pyxelator] {line}")
 
     return result
 
@@ -121,16 +135,14 @@ def click_pw(page, image: str, confidence: float = 0.7, retries: int = 3, delay:
         if not coords:
             if debug:
                 print(f"[Pyxelator] Attempt {attempt + 1}/{retries}: Element not found in screenshot")
-                if attempt == 0:
-                    print(f"[Pyxelator] The template image does not match any element on the page.")
-                    print(f"[Pyxelator] Tip: Try lowering confidence or recapture the template")
             if attempt < retries - 1:
                 time.sleep(delay)
                 continue
 
-            if not debug:
-                print(f"[Pyxelator ERROR] Element not found after {retries} attempts: '{image}'")
-                print(f"[Pyxelator] Try: click_pw(page, '{image}', debug=True) for troubleshooting")
+            # Final failure: diagnose rather than list generic advice.
+            print(f"[Pyxelator ERROR] Element not found after {retries} attempts: '{image}'")
+            for line in explain_miss(_get_screenshot(page), image, confidence):
+                print(f"[Pyxelator] {line}")
             return False
 
         x, y = coords
@@ -167,10 +179,12 @@ def click_pw(page, image: str, confidence: float = 0.7, retries: int = 3, delay:
                 clickable = el;
             }}
 
-            // Click
+            // Click. mousedown/mouseup are dispatched for handlers that listen
+            // for them; the click event itself comes from the native .click()
+            // only - dispatching a synthetic click as well would fire every
+            // handler twice.
             clickable.dispatchEvent(new MouseEvent('mousedown', {{ bubbles: true, cancelable: true }}));
             clickable.dispatchEvent(new MouseEvent('mouseup', {{ bubbles: true, cancelable: true }}));
-            clickable.dispatchEvent(new MouseEvent('click', {{ bubbles: true, cancelable: true }}));
             clickable.click();
 
             return {{success: true, tag: clickable.tagName, text: (clickable.textContent || '').substring(0, 50)}};
@@ -232,7 +246,8 @@ def fill_pw(page, image: str, text: str, confidence: float = 0.7, debug: bool = 
     coords = locate_pw(page, image, confidence)
     if not coords:
         print(f"[Pyxelator ERROR] Element not found: '{image}'")
-        print(f"[Pyxelator] Tip: Try lowering confidence or recapture the template")
+        for line in explain_miss(_get_screenshot(page), image, confidence):
+            print(f"[Pyxelator] {line}")
         return False
 
     x, y = coords

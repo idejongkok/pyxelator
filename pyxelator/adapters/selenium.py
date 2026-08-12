@@ -6,13 +6,22 @@ in Selenium-based automation.
 """
 
 from typing import Tuple, Optional
-from ..core import find_image_in_screenshot
+from ..core import find_image_in_screenshot, locate_match
+from ..utils import explain_miss, to_css_pixels
 import time
 
 
 def _get_screenshot(driver) -> bytes:
     """Get screenshot from Selenium WebDriver."""
     return driver.get_screenshot_as_png()
+
+
+def _viewport_width(driver) -> Optional[float]:
+    """CSS width of the viewport, used to scale HiDPI screenshot coordinates."""
+    try:
+        return driver.execute_script("return window.innerWidth;")
+    except Exception:
+        return None
 
 
 def find(driver, image: str, confidence: float = 0.7, verbose: bool = False) -> bool:
@@ -48,7 +57,8 @@ def find(driver, image: str, confidence: float = 0.7, verbose: bool = False) -> 
 
     if not result and verbose:
         print(f"[Pyxelator WARNING] Element not found: '{image}'")
-        print(f"[Pyxelator] Tip: Try lowering confidence or recapture the template image")
+        for line in explain_miss(screenshot, image, confidence):
+            print(f"[Pyxelator] {line}")
 
     return result
 
@@ -64,7 +74,8 @@ def locate(driver, image: str, confidence: float = 0.7, verbose: bool = False) -
         verbose: Print warning if element not found (default: False)
 
     Returns:
-        (x, y) center coordinates if found, None otherwise
+        (x, y) center coordinates in CSS pixels if found, None otherwise.
+        On a HiDPI display these differ from the raw screenshot pixels.
 
     Example:
         coords = locate(driver, 'button.png')
@@ -77,11 +88,13 @@ def locate(driver, image: str, confidence: float = 0.7, verbose: bool = False) -
         return None
 
     screenshot = _get_screenshot(driver)
-    result = find_image_in_screenshot(screenshot, image, confidence)
+    match = locate_match(screenshot, image, confidence)
+    result = None if match is None else to_css_pixels(match, _viewport_width(driver))
 
     if result is None and verbose:
         print(f"[Pyxelator WARNING] Element not found: '{image}'")
-        print(f"[Pyxelator] Tip: Try lowering confidence or recapture the template image")
+        for line in explain_miss(screenshot, image, confidence):
+            print(f"[Pyxelator] {line}")
 
     return result
 
@@ -122,27 +135,14 @@ def click(driver, image: str, confidence: float = 0.7, retries: int = 3, delay: 
         if not coords:
             if debug:
                 print(f"[Pyxelator] Attempt {attempt + 1}/{retries}: Element not found in screenshot")
-                if attempt == 0:  # Only show tips on first attempt
-                    print(f"[Pyxelator] ")
-                    print(f"[Pyxelator] The template image does not match any element on the page.")
-                    print(f"[Pyxelator] Common causes:")
-                    print(f"[Pyxelator]   - Template was captured at different window size (try driver.maximize_window())")
-                    print(f"[Pyxelator]   - Page content has changed")
-                    print(f"[Pyxelator]   - Template image is too large or captures wrong area")
-                    print(f"[Pyxelator] ")
-                    print(f"[Pyxelator] Solutions:")
-                    print(f"[Pyxelator]   - Lower confidence: click(driver, '{image}', confidence=0.6)")
-                    print(f"[Pyxelator]   - Recapture template at same window size as test")
-                    print(f"[Pyxelator]   - Use smaller, more specific screenshot of just the button")
             if attempt < retries - 1:
                 time.sleep(delay)
                 continue
 
-            # Final failure message
-            if not debug:
-                print(f"[Pyxelator ERROR] Element not found after {retries} attempts: '{image}'")
-                print(f"[Pyxelator] The template image does not match the current page.")
-                print(f"[Pyxelator] Try: click(driver, '{image}', debug=True) for detailed troubleshooting")
+            # Final failure: diagnose rather than list generic advice.
+            print(f"[Pyxelator ERROR] Element not found after {retries} attempts: '{image}'")
+            for line in explain_miss(_get_screenshot(driver), image, confidence):
+                print(f"[Pyxelator] {line}")
             return False
 
         x, y = coords
@@ -184,10 +184,12 @@ def click(driver, image: str, confidence: float = 0.7, retries: int = 3, delay: 
                     clickable = el;
                 }}
 
-                // Click the element
+                // Click the element. mousedown/mouseup are dispatched for
+                // handlers that listen for them; the click event itself comes
+                // from the native .click() only - dispatching a synthetic
+                // click as well would fire every handler twice.
                 clickable.dispatchEvent(new MouseEvent('mousedown', {{ bubbles: true, cancelable: true }}));
                 clickable.dispatchEvent(new MouseEvent('mouseup', {{ bubbles: true, cancelable: true }}));
-                clickable.dispatchEvent(new MouseEvent('click', {{ bubbles: true, cancelable: true }}));
                 clickable.click();
 
                 return {{success: true, tag: clickable.tagName, text: (clickable.textContent || '').substring(0, 50)}};
@@ -326,7 +328,8 @@ def fill(driver, image: str, text: str, confidence: float = 0.7, debug: bool = F
     coords = locate(driver, image, confidence)
     if not coords:
         print(f"[Pyxelator ERROR] Element not found: '{image}'")
-        print(f"[Pyxelator] Tip: Try lowering confidence or recapture the template")
+        for line in explain_miss(_get_screenshot(driver), image, confidence):
+            print(f"[Pyxelator] {line}")
         return False
 
     x, y = coords
