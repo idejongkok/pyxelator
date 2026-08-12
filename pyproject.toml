@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyxelator"
-version = "0.4.0"
+version = "0.5.0"
 description = "Image-based automation for Selenium, Playwright & Appium - locate elements by screenshots"
 readme = "README.md"
 authors = [{name = "Aria Uno Suseno", email = "uno@idejongkok.com"}]
@@ -48,3 +48,9 @@ Instagram = "https://instagram.com/idejongkok"
 [tool.setuptools]
 packages = ["pyxelator", "pyxelator.adapters"]
 package-data = {"pyxelator" = ["*.py"]}
+
+[tool.pytest.ini_options]
+# Confine collection to tests/. The test_*.py scripts at the repo root are
+# ad-hoc manual checks that launch a real browser against a live site.
+testpaths = ["tests"]
+pythonpath = ["."]
