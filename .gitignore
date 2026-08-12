@@ -65,5 +65,14 @@ test_pyxelator_playwright.py
 test_pyxelator_selenium.py
 templates/
 
+# Local scratch area - ad-hoc debug scripts, captured screenshots, dev notes.
+# Nothing in here is part of the package.
+_scratch/
+
+# Screenshots captured at the repo root while debugging.
+# Templates belong in templates/, the project logo is whitelisted below.
+/*.png
+!/PYXELATOR.png
+
 # Claude Code
 .claude/
