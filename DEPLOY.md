@@ -19,8 +19,12 @@ The workflow runs the tests, checks the tag matches the version in
 pyproject.toml, builds, runs `twine check`, then waits for approval on the
 `pypi` environment before uploading.
 
-To rehearse against TestPyPI, run the workflow manually from the Actions tab
-with target `testpypi`.
+### Dry run
+
+Run the workflow manually from the Actions tab. It tests, builds, checks the
+metadata and installs the wheel into a clean environment to confirm it imports
+and matches, then stops. A manual run cannot upload: the publish job only runs
+for a tag. Do this before tagging if a release feels risky.
 
 ### One-time setup
 
@@ -31,8 +35,7 @@ Uploads use PyPI Trusted Publishing, so there is no API token stored anywhere.
    - Repository: `pyxelator`
    - Workflow: `publish.yml`
    - Environment: `pypi`
-2. Repeat on test.pypi.org with environment `testpypi`.
-3. In GitHub, Settings then Environments, create `pypi` and add yourself as a
+2. In GitHub, Settings then Environments, create `pypi` and add yourself as a
    required reviewer. That is the gate that stops an accidental tag shipping.
 
 Actions are pinned to commit SHAs rather than tags, since a tag can be moved to

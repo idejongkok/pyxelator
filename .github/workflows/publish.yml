@@ -10,7 +10,8 @@ name: Publish
 #
 #   git tag 0.5.0 && git push origin 0.5.0
 #
-# Use workflow_dispatch to rehearse against TestPyPI first.
+# Run this manually from the Actions tab for a dry run: it builds, checks the
+# metadata and installs the wheel into a clean environment, but uploads nothing.
 
 on:
   push:
@@ -20,13 +21,6 @@ on:
       - '[0-9]+.[0-9]+.[0-9]+*'
       - 'v[0-9]+.[0-9]+.[0-9]+*'
   workflow_dispatch:
-    inputs:
-      target:
-        description: Where to upload
-        required: true
-        default: testpypi
-        type: choice
-        options: [testpypi, pypi]
 
 permissions:
   contents: read
@@ -78,34 +72,47 @@ jobs:
       - name: Check metadata
         run: python -m twine check dist/*
 
+      # Installing the built wheel somewhere clean catches what a broken sdist
+      # or a missing dependency would only show after the upload, by which point
+      # the version number is spent.
+      - name: Install the wheel into a clean environment and use it
+        run: |
+          python -m venv /tmp/fresh
+          /tmp/fresh/bin/pip install --quiet dist/*.whl
+          mkdir -p /tmp/elsewhere && cd /tmp/elsewhere
+          /tmp/fresh/bin/python - <<'PY'
+          import numpy as np, cv2, pyxelator
+          from pyxelator import find_image_in_screenshot
+
+          print("installed version:", pyxelator.__version__)
+
+          rng = np.random.default_rng(1)
+          page = np.full((300, 400, 3), 240, np.uint8)
+          page[180:204, 250:310] = rng.integers(0, 256, size=(24, 60, 3), dtype=np.uint8)
+          cv2.imwrite('button.png', page[180:204, 250:310])
+          shot = cv2.imencode('.png', page)[1].tobytes()
+
+          assert find_image_in_screenshot(shot, 'button.png') == (280, 192)
+
+          cv2.imwrite('flat.png', np.full((40, 40, 3), 200, np.uint8))
+          assert find_image_in_screenshot(shot, 'flat.png') is None
+          print("the installed package matches and rejects as expected")
+          PY
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: dist
           path: dist/
 
-  testpypi:
-    needs: build
-    if: github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi'
-    runs-on: ubuntu-latest
-    environment: testpypi
-    permissions:
-      id-token: write   # mints the short-lived OIDC token; no stored secret
-    steps:
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: dist
-          path: dist/
-      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
-        with:
-          repository-url: https://test.pypi.org/legacy/
-
+  # Only a tag publishes. A manual run stops after build, so the dry run above
+  # can never upload by accident, and the version check can never be bypassed.
   pypi:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.target == 'pypi')
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     environment: pypi   # add a required reviewer here for an approval gate
     permissions:
-      id-token: write
+      id-token: write   # mints the short-lived OIDC token; no stored secret
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
