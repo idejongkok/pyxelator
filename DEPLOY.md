@@ -35,6 +35,11 @@ Uploads use PyPI Trusted Publishing, so there is no API token stored anywhere.
 3. In GitHub, Settings then Environments, create `pypi` and add yourself as a
    required reviewer. That is the gate that stops an accidental tag shipping.
 
+Actions are pinned to commit SHAs rather than tags, since a tag can be moved to
+point at different code. The version each SHA corresponds to is in the trailing
+comment, and Dependabot opens a monthly PR when one moves. Do not replace a pin
+with a tag when updating by hand.
+
 ---
 
 ## Releasing (manual)

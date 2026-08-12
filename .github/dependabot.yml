@@ -1,0 +1,15 @@
+version: 2
+
+updates:
+  # Actions are pinned to commit SHAs so a tag cannot be moved under us. The
+  # cost is that pins go stale silently, including security fixes. Dependabot
+  # opens a PR when one moves, and updates the trailing version comment too.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ['*']
+    commit-message:
+      prefix: ci
