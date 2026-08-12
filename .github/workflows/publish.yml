@@ -104,6 +104,31 @@ jobs:
           name: dist
           path: dist/
 
+  # Downloading the artifact is the one step a dry run would otherwise never
+  # reach, and download-artifact v8 changed when it unzips. Exercising it on a
+  # manual run means a tag is not the first time it executes: a surprise there
+  # leaves the release half done with the version number already spent.
+  verify-download:
+    needs: build
+    if: "!startsWith(github.ref, 'refs/tags/')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dist
+          path: dist/
+
+      - name: Confirm the distributions arrived unpacked
+        run: |
+          ls -l dist/
+          test -f dist/pyxelator-*.whl || { echo "no wheel in dist/" >&2; exit 1; }
+          test -f dist/pyxelator-*.tar.gz || { echo "no sdist in dist/" >&2; exit 1; }
+          if ls dist/*.zip >/dev/null 2>&1; then
+            echo "artifact arrived still zipped; the publish job would upload nothing" >&2
+            exit 1
+          fi
+          echo "both distributions present and unpacked"
+
   # Only a tag publishes. A manual run stops after build, so the dry run above
   # can never upload by accident, and the version check can never be bypassed.
   pypi:
