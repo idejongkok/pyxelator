@@ -1,99 +1,114 @@
 # Pyxelator - Project Structure
 
+For contributors. If you just want to use the library, see [README.md](README.md).
+
 ```
-locateonapps/
+pyxelator/
 │
-├── pyxelator.py
-├── README.md
-├── .gitignore
-├── STRUCTURE.md
+├── pyxelator/                  the package
+│   ├── __init__.py             public API + driver dispatch
+│   ├── core.py                 template matching (OpenCV only)
+│   ├── utils.py                driver detection, coordinate conversion, diagnostics
+│   └── adapters/
+│       ├── __init__.py
+│       ├── selenium.py         Selenium WebDriver
+│       ├── playwright.py       Playwright
+│       └── appium.py           Appium (beta)
 │
-├── test_pyxelator_selenium.py
-├── test_pyxelator_playwright.py
+├── tests/                      unit tests - no browser, no device
+│   ├── test_core.py            matching, thresholds, malformed input
+│   ├── test_multiscale.py      the scale ladder and its limits
+│   ├── test_utils.py           coordinate conversion, driver detection
+│   ├── test_explain_miss.py    failure diagnosis
+│   └── test_appium_adapter.py  W3C gestures, via a fake driver
 │
-└── templates/
-    ├── masuk.png
-    ├── poster.png
-    └── editbutton.png
+├── README.md                   usage and API reference
+├── ERROR_HANDLING_GUIDE.md     what each error message means
+├── STRUCTURE.md                this file
+├── DEPLOY.md                   release process
+│
+├── pyproject.toml              packaging + pytest config
+├── setup.py                    kept for older tooling; pyproject is the source of truth
+├── requirements.txt
+└── LICENSE
 ```
 
-## Main Files
+## How the layers fit together
 
-### Core Library
-- **pyxelator.py** - Main library with simple API
+```
+your test
+    │
+    │  find / locate / click / fill  (same call for every framework)
+    ▼
+__init__.py ─── detect_driver_type() ──▶ picks an adapter
+    │
+    ▼
+adapters/{selenium,playwright,appium}.py
+    │   take the screenshot
+    │   convert coordinates into the driver's space
+    │   perform the click / fill / tap
+    ▼
+core.py
+        match the template against the screenshot
+```
 
-### Documentation
-- **README.md** - Complete usage guide and API reference
-- **STRUCTURE.md** - Project structure (this file)
+**The split that matters:** `core.py` knows nothing about browsers or drivers -
+it takes screenshot bytes and a template path and returns coordinates. That is
+why the whole matching layer is testable without launching anything, and why
+adding a framework means writing one adapter rather than touching the matching
+code.
 
-### Tests
-- **test_pyxelator_selenium.py** - Selenium integration tests
-- **test_pyxelator_playwright.py** - Playwright integration tests
+### `core.py`
 
-### Template Images
-- **templates/** - Folder containing example template images for testing
-  - **masuk.png** - Login button template
-  - **poster.png** - Example element template
-  - **editbutton.png** - Edit button template
+Pure OpenCV. Public entry points:
 
-## Usage
+| Function | Returns |
+|---|---|
+| `find_image_in_screenshot()` | `(x, y)` or `None` |
+| `locate_match()` | `Match` (adds score, screenshot size, scale) or `None` |
+| `match_score()` | best score regardless of threshold |
+| `check_image_exists()` | `bool` |
+| `image_sizes()` | screenshot and template dimensions, for diagnostics |
 
-### Install Dependencies
+Coordinates are in **screenshot pixels**. Converting them is the adapter's job.
+
+### `utils.py`
+
+| Function | Purpose |
+|---|---|
+| `detect_driver_type()` | Selenium / Playwright / Appium, from the driver's module |
+| `to_css_pixels()` | screenshot pixels → the driver's coordinate space |
+| `explain_miss()` | why a template did not match, in words |
+
+### `adapters/`
+
+Each adapter provides `find`, `locate`, `click` and `fill`; Appium adds
+`swipe_app`. Names are suffixed per framework (`find_pw`, `find_app`) so the
+dispatcher in `__init__.py` can import them all side by side.
+
+Framework packages are imported **inside** the functions that need them, never
+at module level, so `import pyxelator` works with only OpenCV installed.
+
+## Running the tests
+
 ```bash
-pip install opencv-python numpy selenium playwright
+pip install -e ".[dev]"
+pytest
 ```
 
-### Run Tests
-```bash
-# Selenium tests
-pytest test_pyxelator_selenium.py -v
+`pyproject.toml` sets `testpaths = ["tests"]`, so a bare `pytest` collects only
+the unit tests. They need no browser and finish in seconds.
 
-# Playwright tests
-pytest test_pyxelator_playwright.py -v
+Any `test_*.py` at the repo root is a personal scratch script that drives a real
+browser against a live site - those are gitignored and are not part of the suite.
 
-# All tests
-pytest -v
-```
+## Adding support for another framework
 
-### Quick Example
-```python
-from pyxelator import find, click, fill
-from selenium import webdriver
-
-driver = webdriver.Chrome()
-driver.get('https://example.com')
-
-if find(driver, 'button.png'):
-    click(driver, 'button.png')
-```
-
-## API Overview
-
-### Simple Function API
-```python
-from pyxelator import find, click, fill
-
-# Check if element exists
-if find(driver, 'button.png'):
-    print("Found!")
-
-# Click element
-click(driver, 'submit.png')
-
-# Fill text
-fill(driver, 'email.png', 'user@example.com')
-```
-
-### Class-based API
-```python
-from pyxelator import Pyxelator
-
-px = Pyxelator(driver)
-px.find('button.png')
-px.click('button.png')
-px.fill('input.png', 'text')
-```
-
-## Contributing
-
-See README.md for contribution guidelines.
+1. Add `pyxelator/adapters/<name>.py` with `find`, `locate`, `click`, `fill`.
+   Import the framework's own package inside the functions, not at module level.
+2. Take the screenshot, call `core.locate_match()`, then convert the coordinates
+   with `utils.to_css_pixels()` - skipping that step breaks every HiDPI display.
+3. Teach `utils.detect_driver_type()` to recognise the driver.
+4. Add a branch to each dispatcher in `pyxelator/__init__.py`.
+5. Add tests with a fake driver. See `tests/test_appium_adapter.py` - it asserts
+   real gesture payloads without an emulator.

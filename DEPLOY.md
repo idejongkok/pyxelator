@@ -79,7 +79,7 @@ python -m twine upload -u __token__ -p pypi-YOUR_TOKEN_HERE dist/*
 When releasing a new version:
 
 1. Update version in:
-   - `pyxelator.py` (__version__)
+   - `pyxelator/__init__.py` (__version__)
    - `setup.py` (version)
    - `pyproject.toml` (version)
 

@@ -1,5 +1,7 @@
+include LICENSE
 include README.md
-include requirements.txt
+include ERROR_HANDLING_GUIDE.md
 include STRUCTURE.md
+include requirements.txt
 include PYXELATOR.png
-recursive-include templates *.png
+recursive-include tests *.py

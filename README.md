@@ -251,7 +251,35 @@ if find(driver, 'login_button.png'):
 driver.quit()
 ```
 
+#### Swiping (Appium only)
+
+```python
+from pyxelator import swipe_app
+
+# Swipe up 300px starting from the centre of the matched element
+swipe_app(driver, 'list_item.png', 'up', 300)
+
+# Slower drag - some apps ignore a fast flick
+swipe_app(driver, 'slider_handle.png', 'right', 200, duration=0.6)
+```
+
+**Parameters:**
+- `driver` - Appium driver
+- `image` - Path to template image (the swipe starts at its centre)
+- `direction` - `'up'`, `'down'`, `'left'` or `'right'`
+- `distance` - Distance in pixels (default: 200)
+- `confidence` - Match confidence 0.0-1.0 (default: 0.7)
+- `duration` - Seconds spent travelling (default: 0.2). Raise it if the app treats the gesture as a fling.
+- `debug` - Print debug information (default: False)
+
+**Returns:** `True` if swiped, `False` if the element was not found, the direction is invalid, or the gesture failed
+
+A swipe that would run past the screen edge is clamped to it. If clamping leaves
+nowhere to move, the swipe is refused rather than performed as a no-op.
+
 > **Note:** Appium support is currently in **Beta**. Template matching works best with unique UI elements. For optimal results, use high-confidence templates and ensure elements are fully visible on screen.
+>
+> Gestures use the W3C Actions protocol and need an **Appium 2.0+ server**.
 
 ### Pytest Integration
 
@@ -327,6 +355,64 @@ find(driver, 'button.png', confidence=0.5)
 
 **Recommendation:** Start with `0.7`, adjust if needed.
 
+### Window size and multi-scale matching
+
+Template matching is very sensitive to size. A template captured at one window
+size scores near zero against the same page rendered even 4% wider - which is
+why "recapture at the same window size" used to be the standard advice.
+
+Pyxelator now tries the template at a ladder of sizes automatically, so a
+template captured on one window generally still works on another:
+
+| Template vs page | Result |
+|---|---|
+| 0.66x - 1.54x | Found, no configuration needed |
+| exactly 0.5x / 2.0x | Found - covers a display with a different device pixel ratio |
+| below 0.66x, above 1.54x | Not found - recapture the template |
+
+Two narrow bands (around 1.06x and 1.55x) score just under the 0.7 default;
+`confidence=0.65` covers them.
+
+**Cost.** A template that matches at its captured size short-circuits, so the
+common case is unaffected - measured at 112ms with the ladder vs 127ms without,
+on a 1920x893 screenshot. A template that matches at *no* size pays for the
+whole ladder: ~1.0s instead of ~113ms. That only affects the not-found path, but
+it is worth knowing if you call `find()` in a loop as a presence check.
+
+To match only at the captured size:
+
+```python
+from pyxelator import find_image_in_screenshot
+
+find_image_in_screenshot(shot, 'button.png', scales=(1.0,))
+
+# Or globally, before your tests run:
+import pyxelator.core
+pyxelator.core.DEFAULT_SCALES = (1.0,)
+```
+
+**Limitation.** The winning size is whichever ladder rung scores highest. When
+the real element sits between two rungs *and* a similar-looking element sits
+exactly on one, the look-alike can win. Templates cropped tightly around
+something visually distinctive avoid this.
+
+### Picking a value with `match_score()`
+
+Instead of guessing, ask how close the template actually came:
+
+```python
+from pyxelator import match_score
+
+score = match_score(driver.get_screenshot_as_png(), 'button.png')
+print(score)
+# 0.62  -> element is there but rendering differs slightly; try confidence=0.6
+# 0.13  -> element is not on screen; the template is wrong or the page changed
+# None  -> template unreadable, larger than the screen, or a solid colour
+```
+
+A score is a `TM_CCOEFF_NORMED` correlation from -1.0 to 1.0. Anything at or
+above your `confidence` counts as a match.
+
 ---
 
 ## Framework Compatibility
@@ -379,11 +465,15 @@ fill(driver, 'input.png', 'text', debug=True)
 #### Element Not Found
 ```
 [Pyxelator ERROR] Element not found after 3 attempts: 'button.png'
+[Pyxelator] Best match scored 0.42, below the 0.70 threshold.
+[Pyxelator] That is a weak, partial match. Likely causes:
+[Pyxelator]   - the template includes surrounding layout, not just the element
+[Pyxelator]   - the element is styled differently now (hover, disabled, theme)
 ```
-**Solutions:**
-1. Lower confidence: `click(driver, 'button.png', confidence=0.6)`
-2. Recapture template at same window size
-3. Use debug mode: `click(driver, 'button.png', debug=True)`
+**Solution:** Read the score and the advice under it - both change depending on
+how close the match was, so the right fix differs. A score below 0.4 means the
+element is not on screen and no template change will help. See
+[ERROR_HANDLING_GUIDE.md](ERROR_HANDLING_GUIDE.md) for each case.
 
 #### Element Not Clickable
 ```
@@ -414,12 +504,13 @@ click(driver, 'button.png', retries=5, delay=1.0)
 
 ### Element Not Found?
 
-1. **Use debug mode** - `click(driver, 'button.png', debug=True)`
-2. **Check template size** - Must be smaller than viewport
-3. **Lower confidence** - Try `confidence=0.6`
-4. **Verify element visibility** - Element must be on screen
-5. **Check template quality** - Use clear screenshots
-6. **Window size consistency** - Capture templates at same window size as tests
+1. **Check the score first** - `match_score(driver.get_screenshot_as_png(), 'button.png')`.
+   This answers most cases on its own: above 0.7 the element is there, below 0.4 it is not.
+2. **Read the failure message** - it reports the score and tailors its advice to it
+3. **Verify element visibility** - matching only sees the visible viewport, so scroll to it first
+4. **Check nothing is covering it** - cookie banners and modals are the usual culprits
+5. **Crop the template tighter** - just the element, no surrounding layout
+6. **Check template size** - must be smaller than the viewport
 
 ### Click Not Working?
 
@@ -525,7 +616,52 @@ MIT License - see LICENSE file
 
 ## Changelog
 
-### v0.4.0 (Latest)
+### v0.5.0
+
+- **FIX:** Coordinates are now scaled from screenshot pixels to CSS pixels, so
+  `click()` and `fill()` hit the element on HiDPI displays instead of missing by
+  the device pixel ratio. Also fixes Appium on iOS, where taps use points.
+- **FIX:** `click()` no longer fires every handler twice. It dispatched a
+  synthetic `click` event *and* called native `.click()`, double-submitting forms.
+- **FIX:** Removed the `TM_CCORR_NORMED` fallback. It does not subtract the mean,
+  so it scored 0.93-0.99 on almost any pair of images and returned confident
+  coordinates for elements that were not on screen.
+- **FIX:** Reject solid-colour templates. `TM_CCOEFF_NORMED` is `0/0` for these
+  and OpenCV resolves it to 1.0 everywhere, so they matched at (0, 0) on anything.
+- **FIX:** `swipe_app()` works again. It was built on `TouchAction`, removed in
+  Appium-Python-Client 3.0, so it returned `False` on every supported client.
+  Rewritten on W3C Actions, along with the dead fallbacks in `click_app()`/`fill_app()`.
+- **FIX:** `from pyxelator import swipe_app` works. Its docstring documented that
+  import but the function was never exported.
+- **FIX:** Appium failures report the cause instead of a bare `False`.
+- **FIX:** Return `None` instead of crashing on an undecodable screenshot.
+- **NEW:** Multi-scale matching. A template captured at one window size now
+  matches from 0.66x to 1.54x, plus exact 0.5x/2.0x for a device pixel ratio
+  change. Previously a 4% difference was enough to fail. Matches at the captured
+  size short-circuit, so successful lookups cost nothing extra.
+- **NEW:** `match_score()` reports how close a template came, for picking a
+  `confidence` value.
+- **NEW:** Failure messages report the actual score and tailor their advice to it.
+- **NEW:** `Match.scale` reports which size a template matched at.
+- **NEW:** `swipe_app()` takes `duration` and `debug`, validates its direction,
+  and clamps the gesture to the screen.
+- **NEW:** `grayscale=False` genuinely matches on colour. It previously converted
+  the template to grayscale anyway, making the flag a no-op.
+- **NEW:** Unit test suite (`tests/`) - 141 tests, no browser or device needed.
+- **DOCS:** `ERROR_HANDLING_GUIDE.md` rewritten and actually shipped; it was
+  referenced but never committed.
+- **DOCS:** `STRUCTURE.md` rewritten - it described the old single-file layout.
+
+> **Upgrade notes**
+>
+> `locate()` returns CSS pixels now, not raw screenshot pixels. Identical on a
+> standard-DPI display. Remove any HiDPI offset workaround of your own.
+>
+> Elements that only ever matched through the old CCORR fallback will now report
+> as not found, which is correct - they were never really being matched. Run
+> `match_score()` on anything that stops being located.
+
+### v0.4.0
 - **NEW:** Comprehensive error handling for all adapters (Selenium, Playwright, Appium)
 - **NEW:** File validation - checks if template image exists before processing
 - **NEW:** Clickability detection - validates element is clickable before clicking (Selenium & Playwright)
