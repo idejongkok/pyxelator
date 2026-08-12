@@ -1,5 +1,46 @@
 # PyPI Deployment Guide for Pyxelator
 
+## Releasing (automated)
+
+`.github/workflows/publish.yml` builds and uploads on a tag. It does not run on
+a plain push to main, on purpose: a PyPI version can never be replaced, so every
+upload has to be deliberate.
+
+```bash
+# 1. Bump the version in pyproject.toml, setup.py and pyxelator/__init__.py
+# 2. Update the changelog in README.md
+# 3. Commit, then tag
+git tag v0.5.0
+git push origin main
+git push origin v0.5.0
+```
+
+The workflow runs the tests, checks the tag matches the version in
+pyproject.toml, builds, runs `twine check`, then waits for approval on the
+`pypi` environment before uploading.
+
+To rehearse against TestPyPI, run the workflow manually from the Actions tab
+with target `testpypi`.
+
+### One-time setup
+
+Uploads use PyPI Trusted Publishing, so there is no API token stored anywhere.
+
+1. On PyPI, go to the project, then Publishing, then add a GitHub publisher:
+   - Owner: `idejongkok`
+   - Repository: `pyxelator`
+   - Workflow: `publish.yml`
+   - Environment: `pypi`
+2. Repeat on test.pypi.org with environment `testpypi`.
+3. In GitHub, Settings then Environments, create `pypi` and add yourself as a
+   required reviewer. That is the gate that stops an accidental tag shipping.
+
+---
+
+## Releasing (manual)
+
+Only needed if the workflow is unavailable.
+
 ## Prerequisites
 
 Install required tools:
