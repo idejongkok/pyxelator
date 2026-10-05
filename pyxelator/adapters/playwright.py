@@ -24,6 +24,58 @@ def _viewport_width(page) -> Optional[float]:
         return None
 
 
+def _click_at(page, x: int, y: int, debug: bool = False) -> bool:
+    """Click a pre-validated point for the structured action API."""
+    try:
+        page.mouse.click(x, y)
+        return True
+    except Exception as error:
+        if debug:
+            print(f"[Pyxelator] Structured click failed: {error}")
+        return False
+
+
+def _fill_at(page, x: int, y: int, text: str, debug: bool = False) -> bool:
+    """Fill a field at a pre-validated point for the structured action API."""
+    import json
+
+    value = json.dumps(text)
+    script = f"""() => {{
+        var el = document.elementFromPoint({x}, {y});
+        if (!el) return {{success: false, reason: 'No element at coordinates'}};
+        var input = el.closest('input') || el.closest('textarea') ||
+                    el.closest('[contenteditable]');
+        if (!input) return {{success: false, reason: 'Element is not fillable'}};
+        input.focus();
+        if (input.tagName === 'INPUT') {{
+            var setter = Object.getOwnPropertyDescriptor(
+                window.HTMLInputElement.prototype, 'value'
+            ).set;
+            setter.call(input, {value});
+            input.dispatchEvent(new Event('input', {{bubbles: true}}));
+            input.dispatchEvent(new Event('change', {{bubbles: true}}));
+        }} else if (input.tagName === 'TEXTAREA') {{
+            var setter = Object.getOwnPropertyDescriptor(
+                window.HTMLTextAreaElement.prototype, 'value'
+            ).set;
+            setter.call(input, {value});
+            input.dispatchEvent(new Event('input', {{bubbles: true}}));
+            input.dispatchEvent(new Event('change', {{bubbles: true}}));
+        }} else {{
+            input.textContent = {value};
+            input.dispatchEvent(new Event('input', {{bubbles: true}}));
+        }}
+        return {{success: true, tag: input.tagName}};
+    }}"""
+    try:
+        result = page.evaluate(script)
+        return result.get("success", False) if isinstance(result, dict) else bool(result)
+    except Exception as error:
+        if debug:
+            print(f"[Pyxelator] Structured fill failed: {error}")
+        return False
+
+
 def find_pw(page, image: str, confidence: float = 0.7, verbose: bool = False) -> bool:
     """
     Check if element exists on the page.

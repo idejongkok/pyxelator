@@ -10,9 +10,9 @@ upload has to be deliberate.
 # 1. Bump the version in pyproject.toml, setup.py and pyxelator/__init__.py
 # 2. Update the changelog in README.md
 # 3. Commit, then tag. Bare numbers, matching the existing 0.3.1 / 0.4.0 tags.
-git tag 0.5.0
+git tag 1.0.0
 git push origin main
-git push origin 0.5.0
+git push origin 1.0.0
 ```
 
 The workflow runs the tests, checks the tag matches the version in
@@ -65,13 +65,13 @@ python -m build
 ```
 
 This will create:
-- `dist/pyxelator-0.1.0.tar.gz` (source distribution)
-- `dist/pyxelator-0.1.0-py3-none-any.whl` (wheel distribution)
+- `dist/pyxelator-1.0.0.tar.gz` (source distribution)
+- `dist/pyxelator-1.0.0-py3-none-any.whl` (wheel distribution)
 
 ## Step 2: Test Installation Locally
 
 ```bash
-pip install dist/pyxelator-0.1.0-py3-none-any.whl
+pip install dist/pyxelator-1.0.0-py3-none-any.whl
 ```
 
 Test it works:

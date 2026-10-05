@@ -27,7 +27,7 @@ Universal API - Works with any automation framework:
 Note: Appium support is currently in beta.
 
 Author: Aria Uno Suseno (@idejongkok)
-Version: 0.5.0
+Version: 1.0.0
 License: MIT
 """
 
@@ -38,12 +38,14 @@ from .utils import detect_driver_type
 from . import adapters
 
 # Import core for advanced usage
-from .core import find_image_in_screenshot, check_image_exists, match_score
+from .core import find_image_in_screenshot, check_image_exists, match_result, match_score
+from .results import ActionResult, MatchCandidate, MatchResult, Rectangle, VerificationResult
+from .actions import click_result, fill_result
 
 # Appium-only gesture, re-exported so `from pyxelator import swipe_app` works.
 from .adapters.appium import swipe_app
 
-__version__ = '0.5.0'
+__version__ = '1.0.0'
 __author__ = 'Aria Uno Suseno'
 __email__ = 'uno@idejongkok.com'
 
@@ -53,7 +55,9 @@ __all__ = [
     'find',
     'locate',
     'click',
+    'click_result',
     'fill',
+    'fill_result',
     'exists',
 
     # Appium only
@@ -62,7 +66,15 @@ __all__ = [
     # Advanced/Core functions
     'find_image_in_screenshot',
     'check_image_exists',
+    'match_result',
     'match_score',
+
+    # Structured result contract (additive v1 foundation)
+    'Rectangle',
+    'MatchCandidate',
+    'MatchResult',
+    'ActionResult',
+    'VerificationResult',
 
     # Legacy
     'Pyxelator',
@@ -244,6 +256,16 @@ class Pyxelator:
         """Click element"""
         return click(self.driver, image, confidence)
 
+    def click_result(self, image: str, confidence: float = 0.7, **kwargs) -> ActionResult:
+        """Safely click one unambiguous target and return structured evidence."""
+        return click_result(self.driver, image, confidence, **kwargs)
+
     def fill(self, image: str, text: str, confidence: float = 0.7) -> bool:
         """Fill text into element"""
         return fill(self.driver, image, text, confidence)
+
+    def fill_result(
+        self, image: str, text: str, confidence: float = 0.7, **kwargs
+    ) -> ActionResult:
+        """Safely fill one unambiguous target and return structured evidence."""
+        return fill_result(self.driver, image, text, confidence, **kwargs)

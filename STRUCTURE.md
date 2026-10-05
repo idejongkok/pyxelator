@@ -8,6 +8,8 @@ pyxelator/
 ├── pyxelator/                  the package
 │   ├── __init__.py             public API + driver dispatch
 │   ├── core.py                 template matching (OpenCV only)
+│   ├── results.py              structured match/action result contracts
+│   ├── actions.py              ambiguity-safe framework action orchestration
 │   ├── utils.py                driver detection, coordinate conversion, diagnostics
 │   └── adapters/
 │       ├── __init__.py
@@ -18,10 +20,15 @@ pyxelator/
 ├── tests/                      unit tests - no browser, no device
 │   ├── test_core.py            matching, thresholds, malformed input
 │   ├── test_multiscale.py      the scale ladder and its limits
+│   ├── test_results.py         structured match/result contracts
+│   ├── test_actions.py         structured click/fill safety and dispatch
 │   ├── test_utils.py           coordinate conversion, driver detection
 │   ├── test_explain_miss.py    failure diagnosis
 │   └── test_appium_adapter.py  W3C gestures, via a fake driver
 │
+├── docs/structured-results.md  structured API contract and usage flows
+├── examples/                   runnable examples (not collected as tests)
+├── benchmarks/                 opt-in reproducible timing scripts
 ├── README.md                   usage and API reference
 ├── ERROR_HANDLING_GUIDE.md     what each error message means
 ├── STRUCTURE.md                this file
@@ -65,12 +72,25 @@ Pure OpenCV. Public entry points:
 | Function | Returns |
 |---|---|
 | `find_image_in_screenshot()` | `(x, y)` or `None` |
+| `match_result()` | `MatchResult` with ranked candidates and ambiguity safety |
 | `locate_match()` | `Match` (adds score, screenshot size, scale) or `None` |
 | `match_score()` | best score regardless of threshold |
 | `check_image_exists()` | `bool` |
 | `image_sizes()` | screenshot and template dimensions, for diagnostics |
 
 Coordinates are in **screenshot pixels**. Converting them is the adapter's job.
+The legacy functions retain their established return types; `match_result()`
+is the additive migration path for callers that need machine-readable
+diagnostics.
+
+### `actions.py`
+
+`click_result()` and `fill_result()` capture one screenshot, require an `ok`
+`MatchResult`, convert its centre into the framework's coordinate space, and
+only then call the adapter's coordinate primitive. Low-confidence, ambiguous,
+and unusable matches return an `ActionResult` without touching the page/device.
+An optional existing template can be matched against a fresh post-action
+screenshot for fail-closed verification.
 
 ### `utils.py`
 
@@ -101,6 +121,12 @@ the unit tests. They need no browser and finish in seconds.
 
 Any `test_*.py` at the repo root is a personal scratch script that drives a real
 browser against a live site - those are gitignored and are not part of the suite.
+
+The matching-path benchmark is intentionally outside `tests/`. Run it manually:
+
+```bash
+python benchmarks/benchmark_matching.py --iterations 20
+```
 
 ## Adding support for another framework
 

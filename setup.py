@@ -10,7 +10,7 @@ long_description = (this_directory / "README.md").read_text(encoding='utf-8')
 
 setup(
     name='pyxelator',
-    version='0.5.0',
+    version='1.0.0',
     author='Aria Uno Suseno',
     author_email='uno@idejongkok.com',
     description='Image-based automation for Selenium, Playwright & Appium - locate elements by screenshots',
@@ -19,7 +19,7 @@ setup(
     url='https://github.com/idejongkok/pyxelator',
     packages=find_packages(),
     classifiers=[
-        'Development Status :: 4 - Beta',
+        'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Developers',
         'Topic :: Software Development :: Testing',
         'Topic :: Software Development :: Quality Assurance',
