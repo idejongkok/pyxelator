@@ -7,6 +7,7 @@ in Appium-based automation.
 Note: Appium support is currently in beta. Please report any issues on GitHub.
 """
 
+import time
 from typing import Tuple, Optional
 from ..core import find_image_in_screenshot, locate_match
 from ..utils import explain_miss, to_css_pixels
@@ -60,6 +61,23 @@ def _tap(driver, x: int, y: int, debug: bool = False) -> bool:
         if debug:
             print(f"[Pyxelator] Gestures use the W3C Actions protocol, which needs "
                   f"an Appium 2.0+ server")
+        return False
+
+
+def _fill_at(driver, x: int, y: int, text: str, debug: bool = False) -> bool:
+    """Fill the field at a pre-validated point for the structured action API."""
+    if not _tap(driver, x, y, debug):
+        return False
+
+    time.sleep(0.3)
+    try:
+        active_element = driver.switch_to.active_element
+        active_element.clear()
+        active_element.send_keys(text)
+        return True
+    except Exception as error:
+        if debug:
+            print(f"[Pyxelator] Structured fill failed: {error}")
         return False
 
 

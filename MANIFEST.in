@@ -5,3 +5,6 @@ include STRUCTURE.md
 include requirements.txt
 include PYXELATOR.png
 recursive-include tests *.py
+recursive-include docs *.md *.html *.css
+recursive-include examples *.py
+recursive-include benchmarks *.py

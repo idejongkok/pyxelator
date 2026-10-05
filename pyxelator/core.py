@@ -7,7 +7,9 @@ that is shared across all adapters (Selenium, Playwright, Appium, etc).
 
 import cv2
 import numpy as np
-from typing import NamedTuple, Tuple, Optional
+from typing import List, NamedTuple, Tuple, Optional
+
+from .results import MatchCandidate, MatchResult, Rectangle
 
 
 class Match(NamedTuple):
@@ -219,6 +221,227 @@ def find_image_in_screenshot(
     """
     match = locate_match(screenshot_bytes, template_path, confidence, grayscale, scales)
     return None if match is None else (match.x, match.y)
+
+
+def _same_spatial_candidate(first: MatchCandidate, second: MatchCandidate) -> bool:
+    """Return whether candidates at different scales identify the same target."""
+    first_x, first_y = first.coordinates
+    second_x, second_y = second.coordinates
+    return (
+        abs(first_x - second_x)
+        < max(1, min(first.location.width, second.location.width) // 2)
+        and abs(first_y - second_y)
+        < max(1, min(first.location.height, second.location.height) // 2)
+    )
+
+
+def _rank_match_candidates(
+    screenshot_bytes: bytes,
+    template_path: str,
+    confidence: float,
+    grayscale: bool,
+    scales: Optional[Tuple[float, ...]],
+    max_candidates: int = 8,
+) -> Tuple[MatchCandidate, ...]:
+    """Rank spatially distinct candidates across all requested scales.
+
+    The strongest location at every usable scale is retained even below the
+    threshold so a miss still has diagnostic evidence. Additional locations
+    are collected only while they meet ``confidence``. Non-maximum suppression
+    prevents nearby response-map peaks and scale variants of the same element
+    from being mistaken for separate candidates.
+    """
+    img = cv2.imdecode(
+        np.frombuffer(screenshot_bytes, np.uint8), cv2.IMREAD_COLOR
+    )
+    if img is None:
+        return ()
+
+    template = cv2.imread(
+        template_path,
+        cv2.IMREAD_GRAYSCALE if grayscale else cv2.IMREAD_COLOR,
+    )
+    if template is None or float(template.std()) < _MIN_TEMPLATE_STD:
+        return ()
+
+    if grayscale:
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    img_h, img_w = img.shape[:2]
+    attempted_scales = DEFAULT_SCALES if scales is None else scales
+    raw_candidates: List[MatchCandidate] = []
+
+    for scale in attempted_scales:
+        scaled = _resize_template(template, scale)
+        if scaled is None or float(scaled.std()) < _MIN_TEMPLATE_STD:
+            continue
+
+        height, width = scaled.shape[:2]
+        if height > img_h or width > img_w:
+            continue
+
+        scores = cv2.matchTemplate(img, scaled, cv2.TM_CCOEFF_NORMED)
+        # Work on a copy because suppression mutates the response map.
+        remaining = scores.copy()
+        for rank_at_scale in range(max_candidates):
+            _, score, _, top_left = cv2.minMaxLoc(remaining)
+            if rank_at_scale > 0 and score < confidence:
+                break
+
+            location = Rectangle(
+                x=top_left[0],
+                y=top_left[1],
+                width=width,
+                height=height,
+            )
+            raw_candidates.append(
+                MatchCandidate(score=float(score), location=location, scale=scale)
+            )
+
+            # A shifted peak from the same visual element is not a runner-up.
+            # Suppress top-left positions up to one template size away; two
+            # adjacent, non-overlapping instances remain independently ranked.
+            left = max(0, top_left[0] - width + 1)
+            right = min(remaining.shape[1], top_left[0] + width)
+            top = max(0, top_left[1] - height + 1)
+            bottom = min(remaining.shape[0], top_left[1] + height)
+            remaining[top:bottom, left:right] = -2.0
+
+    ranked: List[MatchCandidate] = []
+    for candidate in sorted(raw_candidates, key=lambda item: item.score, reverse=True):
+        if any(_same_spatial_candidate(candidate, kept) for kept in ranked):
+            continue
+        ranked.append(candidate)
+        if len(ranked) >= max_candidates:
+            break
+
+    return tuple(ranked)
+
+
+def _unusable_match_reason(
+    screenshot_bytes: bytes,
+    template_path: str,
+    grayscale: bool,
+    scales: Optional[Tuple[float, ...]],
+) -> str:
+    """Classify why no candidate could be scored."""
+    try:
+        img = cv2.imdecode(
+            np.frombuffer(screenshot_bytes, np.uint8), cv2.IMREAD_COLOR
+        )
+    except Exception:
+        return "invalid_screenshot"
+    if img is None:
+        return "invalid_screenshot"
+
+    template = cv2.imread(
+        template_path,
+        cv2.IMREAD_GRAYSCALE if grayscale else cv2.IMREAD_COLOR,
+    )
+    if template is None:
+        return "invalid_template"
+    if float(template.std()) < _MIN_TEMPLATE_STD:
+        return "flat_template"
+
+    img_h, img_w = img.shape[:2]
+    attempted_scales = DEFAULT_SCALES if scales is None else scales
+    any_size_fits = False
+    for scale in attempted_scales:
+        scaled = _resize_template(template, scale)
+        if scaled is None:
+            continue
+        height, width = scaled.shape[:2]
+        if height <= img_h and width <= img_w:
+            any_size_fits = True
+            if float(scaled.std()) >= _MIN_TEMPLATE_STD:
+                # Reaching this branch means OpenCV could have scored a
+                # candidate; reserve a generic reason for unexpected cases.
+                return "match_error"
+
+    return "no_usable_scale" if any_size_fits else "template_too_large"
+
+
+def match_result(
+    screenshot_bytes: bytes,
+    template_path: str,
+    confidence: float = 0.7,
+    grayscale: bool = True,
+    scales: Optional[Tuple[float, ...]] = None,
+    ambiguity_margin: float = 0.02,
+) -> MatchResult:
+    """Match a template and return ranked evidence whether or not it is safe.
+
+    Unlike :func:`locate_match`, a below-threshold result retains the best
+    candidate's score, bounds, and scale. A match is unsafe when a second,
+    spatially distinct candidate also meets ``confidence`` and its score is
+    within ``ambiguity_margin`` of the winner. Invalid inputs return a stable
+    machine-readable ``reason`` rather than raising. Existing legacy helpers keep
+    both their return values and their original matching path.
+    """
+    try:
+        candidates = _rank_match_candidates(
+            screenshot_bytes, template_path, confidence, grayscale, scales
+        )
+        if not candidates:
+            reason = _unusable_match_reason(
+                screenshot_bytes, template_path, grayscale, scales
+            )
+            return MatchResult(
+                ok=False,
+                found=False,
+                score=None,
+                threshold=confidence,
+                location=None,
+                scale=None,
+                reason=reason,
+            )
+
+        winner = candidates[0]
+        runner_up = candidates[1] if len(candidates) > 1 else None
+        found = winner.score >= confidence
+        score_margin = (
+            winner.score - runner_up.score if runner_up is not None else None
+        )
+        ambiguous = bool(
+            found
+            and runner_up is not None
+            and runner_up.score >= confidence
+            and score_margin is not None
+            and score_margin <= ambiguity_margin
+        )
+
+        return MatchResult(
+            ok=found and not ambiguous,
+            found=found,
+            score=winner.score,
+            threshold=confidence,
+            location=winner.location,
+            scale=winner.scale,
+            ambiguous=ambiguous,
+            reason=(
+                "ambiguous_match"
+                if ambiguous
+                else None if found else "below_threshold"
+            ),
+            candidates=candidates,
+            score_margin=score_margin,
+        )
+    except Exception:
+        try:
+            reason = _unusable_match_reason(
+                screenshot_bytes, template_path, grayscale, scales
+            )
+        except Exception:
+            reason = "match_error"
+        return MatchResult(
+            ok=False,
+            found=False,
+            score=None,
+            threshold=confidence,
+            location=None,
+            scale=None,
+            reason=reason,
+        )
 
 
 def locate_match(

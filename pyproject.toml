@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyxelator"
-version = "0.5.0"
+version = "1.0.0"
 description = "Image-based automation for Selenium, Playwright & Appium - locate elements by screenshots"
 readme = "README.md"
 authors = [{name = "Aria Uno Suseno", email = "uno@idejongkok.com"}]
 maintainers = [{name = "Aria Uno Suseno"}]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Topic :: Software Development :: Testing",

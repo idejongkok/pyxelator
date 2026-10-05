@@ -156,6 +156,34 @@ fill(driver, 'password.png', 'secret123', debug=True)
 
 ---
 
+#### Structured result API
+
+Use `match_result()`, `click_result()`, and `fill_result()` when callers need
+ranked match evidence, ambiguity rejection, or optional post-action visual
+verification. They return `MatchResult` or `ActionResult` instead of changing
+the return values of the legacy helpers. See [Structured Results](docs/structured-results.md)
+for signatures, result fields, failure reasons, and complete flows.
+
+All structured API names are available from the package root:
+
+```python
+from pyxelator import (
+    ActionResult,
+    MatchCandidate,
+    MatchResult,
+    Rectangle,
+    VerificationResult,
+    click_result,
+    fill_result,
+    match_result,
+)
+```
+
+The runnable [offline example](examples/structured_results.py) generates its
+own images and does not open a browser or use the network.
+
+---
+
 ### Class API
 
 #### `Pyxelator(driver)`
@@ -173,7 +201,9 @@ px.fill('input.png', 'text')
 - `find(image, confidence=0.7)` bool
 - `locate(image, confidence=0.7)` tuple or None
 - `click(image, confidence=0.7)` bool
+- `click_result(image, confidence=0.7, **kwargs)` ActionResult
 - `fill(image, text, confidence=0.7)` bool
+- `fill_result(image, text, confidence=0.7, **kwargs)` ActionResult
 
 ---
 
@@ -413,6 +443,78 @@ print(score)
 A score is a `TM_CCOEFF_NORMED` correlation from -1.0 to 1.0. Anything at or
 above your `confidence` counts as a match.
 
+### Structured match evidence
+
+For code that needs diagnostics rather than only coordinates, use the additive
+result API:
+
+```python
+from pyxelator import match_result
+
+result = match_result(driver.get_screenshot_as_png(), "button.png", confidence=0.8)
+if result.ok:
+    print(result.coordinates, result.score, result.scale, result.location)
+else:
+    print(result.reason, result.score)  # e.g. ambiguous_match, below_threshold
+```
+
+A below-threshold result retains the best candidate's score, bounds, and scale.
+The structured matcher also ranks spatially distinct candidates and rejects a
+winner as `ambiguous_match` when another passing candidate is within the default
+0.02 score margin. In both cases the result is false in a boolean check so it
+cannot be treated as a safe target by accident. Tune that policy with
+`ambiguity_margin`; candidate evidence is available in `result.candidates`.
+Use `click_result()` when an action must refuse low-confidence or ambiguous
+targets:
+
+```python
+from pyxelator import click_result
+
+result = click_result(driver, "button.png", confidence=0.8)
+if not result:
+    print(result.reason, result.match.score if result.match else None)
+```
+
+Unlike legacy `click()`, this takes one ambiguity-aware screenshot before the
+action and never clicks when `result.match.ok` is false. Optional post-action
+visual verification uses a fresh screenshot and any existing template:
+
+```python
+result = click_result(
+    driver,
+    "save.png",
+    verify_image="saved-banner.png",
+    verification_expected_visible=True,
+)
+```
+
+The returned `ActionResult` includes the `MatchResult` and, when requested, a
+`VerificationResult`.
+
+`fill_result()` applies the same mandatory confidence and ambiguity gate before
+writing text. It uses the coordinates from that one validated match instead of
+calling legacy `fill()` and matching the screen again:
+
+```python
+from pyxelator import fill_result
+
+result = fill_result(driver, "email-field.png", "user@example.com")
+if not result:
+    print(result.reason)
+```
+
+For disappearance verification, an absent result passes only after a usable
+screenshot and template were evaluated below the threshold. Invalid or flat
+images, unusable scales, matcher errors, ambiguous matches, and visible matches
+all fail closed.
+
+The existing pre-v1 functions remain unchanged: `find()` and `click()` return
+`bool`, while `locate()` and `find_image_in_screenshot()` return coordinate
+tuples or `None`.
+
+For a field-by-field contract and complete success, refusal, fill, and
+verification examples, see [docs/structured-results.md](docs/structured-results.md).
+
 ---
 
 ## Framework Compatibility
@@ -615,6 +717,24 @@ MIT License - see LICENSE file
 ---
 
 ## Changelog
+
+### v1.0.0
+
+- **NEW:** Structured matching through `match_result()`, including ranked
+  candidate evidence, stable failure reasons, and ambiguity rejection.
+- **NEW:** `click_result()` and `fill_result()` require a safe, unambiguous
+  match before acting and return immutable `ActionResult` evidence.
+- **NEW:** Optional post-action visual verification can require an image to
+  appear or disappear and fails closed when verification is inconclusive.
+- **COMPAT:** The established `find()`, `locate()`, `click()`, and `fill()` APIs
+  keep their existing signatures and return types.
+- **DOCS:** Added the structured API guide, an offline example, and a
+  reproducible matching benchmark.
+
+> **Upgrade notes**
+>
+> Existing callers do not need code changes. Adopt the structured result APIs
+> when an automation step needs diagnostics, ambiguity safety, or verification.
 
 ### v0.5.0
 

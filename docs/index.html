@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Pyxelator documentation: screenshot-driven automation for Selenium, Playwright, and Appium, with structured match and action evidence.">
+  <title>Pyxelator Docs — Visual automation with evidence</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <nav class="nav shell" aria-label="Primary navigation">
+      <a class="brand" href="#top" aria-label="Pyxelator documentation home">
+        <span class="brand-mark" aria-hidden="true"><span></span></span>
+        <span>Pyxelator <strong>Docs</strong></span>
+      </a>
+      <div class="nav-links">
+        <a href="#quick-start">Quick start</a>
+        <a href="#api">API</a>
+        <a href="#safety">Safety</a>
+        <a class="nav-github" href="https://github.com/idejongkok/pyxelator">GitHub <span aria-hidden="true">↗</span></a>
+      </div>
+    </nav>
+  </header>
+
+  <main id="main">
+    <section class="hero shell" id="top">
+      <div class="hero-copy">
+        <p class="eyebrow"><span>Local development preview</span> Structured v1 API</p>
+        <h1>Find the pixels.<br><em>Keep the evidence.</em></h1>
+        <p class="hero-lede">
+          Locate, click, and fill interface elements from screenshots across Selenium,
+          Playwright, and Appium. The structured API explains every match—and refuses
+          uncertain actions before they touch the page.
+        </p>
+        <div class="hero-actions">
+          <a class="button primary" href="#quick-start">Get started</a>
+          <a class="button secondary" href="structured-results.md">Read the full contract</a>
+        </div>
+        <ul class="hero-facts" aria-label="Project highlights">
+          <li><span aria-hidden="true">✓</span> Python 3.10+</li>
+          <li><span aria-hidden="true">✓</span> No selector required</li>
+          <li><span aria-hidden="true">✓</span> MIT licensed</li>
+        </ul>
+      </div>
+
+      <div class="code-window" aria-label="Structured click example">
+        <div class="window-bar">
+          <span class="window-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span>safe_click.py</span>
+          <span class="window-tag">Python</span>
+        </div>
+        <pre><code><span class="token-keyword">from</span> pyxelator <span class="token-keyword">import</span> click_result
+
+result = click_result(
+    driver,
+    <span class="token-string">"templates/save.png"</span>,
+    confidence=<span class="token-number">0.80</span>,
+    verify_image=<span class="token-string">"templates/saved.png"</span>,
+)
+
+<span class="token-keyword">if</span> result.ok:
+    <span class="token-call">print</span>(<span class="token-string">"Saved safely"</span>)
+<span class="token-keyword">else</span>:
+    <span class="token-call">print</span>(result.reason)</code></pre>
+        <div class="code-result">
+          <span class="pulse" aria-hidden="true"></span>
+          <code>MatchResult(ok=True, score=0.94)</code>
+        </div>
+      </div>
+    </section>
+
+    <section class="framework-strip" aria-label="Supported frameworks">
+      <div class="shell framework-list">
+        <span>One visual API for</span>
+        <strong>Selenium</strong>
+        <span class="divider" aria-hidden="true"></span>
+        <strong>Playwright</strong>
+        <span class="divider" aria-hidden="true"></span>
+        <strong>Appium <small>beta</small></strong>
+      </div>
+    </section>
+
+    <section class="section shell" id="quick-start">
+      <div class="section-heading">
+        <p class="kicker">Quick start</p>
+        <h2>From install to evidence in minutes.</h2>
+        <p>This is an unreleased local development preview. The structured APIs shown here are not yet available from the published PyPI package. For this preview, install the development checkout with <code>pip install -e '.[selenium]'</code>. Capture a tightly cropped element image, then choose the simple or structured API.</p>
+      </div>
+
+      <div class="steps">
+        <article class="step">
+          <div class="step-number">01</div>
+          <h3>Install</h3>
+          <p>Add the adapter extra for the automation framework you use.</p>
+          <pre><code>pip install pyxelator[selenium]</code></pre>
+          <p class="step-note">Also available: <code>playwright</code>, <code>appium</code>, or <code>dev</code>.</p>
+        </article>
+
+        <article class="step">
+          <div class="step-number">02</div>
+          <h3>Capture</h3>
+          <p>Crop a distinctive element from a screenshot. Keep the crop tight and avoid surrounding layout.</p>
+          <div class="template-demo" aria-label="Illustration of a tightly cropped template">
+            <span class="crop-corner top-left"></span>
+            <span class="crop-corner top-right"></span>
+            <span class="crop-corner bottom-left"></span>
+            <span class="crop-corner bottom-right"></span>
+            <span>Save</span>
+          </div>
+        </article>
+
+        <article class="step">
+          <div class="step-number">03</div>
+          <h3>Act</h3>
+          <p>Pass your driver, template, and confidence. Check <code>result.ok</code> before continuing.</p>
+          <pre><code><span class="token-keyword">from</span> pyxelator <span class="token-keyword">import</span> click_result
+
+result = click_result(
+    driver, <span class="token-string">"save.png"</span>,
+    confidence=<span class="token-number">0.8</span>
+)
+<span class="token-keyword">assert</span> result.ok, result.reason</code></pre>
+        </article>
+      </div>
+
+      <aside class="compatibility-note">
+        <strong>Keeping existing tests?</strong>
+        <span>The classic <code>find()</code>, <code>locate()</code>, <code>click()</code>, and <code>fill()</code> helpers keep their established bool/tuple/None returns. Adopt structured results only where you need evidence.</span>
+      </aside>
+    </section>
+
+    <section class="section api-section" id="api">
+      <div class="shell">
+        <div class="section-heading split-heading">
+          <div>
+            <p class="kicker">Structured v1 API</p>
+            <h2>Three calls, one explicit contract.</h2>
+          </div>
+          <p>Match results preserve confidence, bounds, scale, ranked candidates, and refusal reasons. Action results add what happened after the match.</p>
+        </div>
+
+        <div class="api-grid">
+          <article class="api-card featured">
+            <div class="api-title">
+              <span class="api-icon" aria-hidden="true">◎</span>
+              <div>
+                <h3><code>match_result()</code></h3>
+                <p>Inspect screenshot bytes without acting.</p>
+              </div>
+            </div>
+            <pre><code>match_result(
+  screenshot_bytes,
+  template_path,
+  confidence=<span class="token-number">0.7</span>,
+  grayscale=<span class="token-keyword">True</span>,
+  scales=<span class="token-keyword">None</span>,
+  ambiguity_margin=<span class="token-number">0.02</span>,
+) → MatchResult</code></pre>
+            <ul class="check-list">
+              <li>Ranks spatially distinct candidates</li>
+              <li>Reports score, rectangle, scale, and margin</li>
+              <li>Truthful only when <code>ok</code> is true</li>
+            </ul>
+          </article>
+
+          <article class="api-card">
+            <div class="api-title">
+              <span class="api-icon" aria-hidden="true">↗</span>
+              <div>
+                <h3><code>click_result()</code></h3>
+                <p>Validate once, then click safely.</p>
+              </div>
+            </div>
+            <pre><code>click_result(
+  driver, image,
+  confidence=<span class="token-number">0.7</span>, *,
+  ambiguity_margin=<span class="token-number">0.02</span>,
+  verify_image=<span class="token-keyword">None</span>,
+  verification_confidence=<span class="token-keyword">None</span>,
+  verification_expected_visible=<span class="token-keyword">True</span>,
+  debug=<span class="token-keyword">False</span>,
+) → ActionResult</code></pre>
+            <p class="card-foot">One pre-action screenshot. No click occurs unless the match is both confident and unambiguous.</p>
+          </article>
+
+          <article class="api-card">
+            <div class="api-title">
+              <span class="api-icon" aria-hidden="true">T</span>
+              <div>
+                <h3><code>fill_result()</code></h3>
+                <p>Validate once, then write text.</p>
+              </div>
+            </div>
+            <pre><code>fill_result(
+  driver, image, text,
+  confidence=<span class="token-number">0.7</span>, *,
+  ambiguity_margin=<span class="token-number">0.02</span>,
+  verify_image=<span class="token-keyword">None</span>,
+  verification_confidence=<span class="token-keyword">None</span>,
+  verification_expected_visible=<span class="token-keyword">True</span>,
+  debug=<span class="token-keyword">False</span>,
+) → ActionResult</code></pre>
+            <p class="card-foot">The accepted coordinates go directly to the framework adapter, avoiding a second match against a changed screen.</p>
+          </article>
+        </div>
+
+        <div class="result-contract">
+          <div class="contract-intro">
+            <p class="kicker">Result objects</p>
+            <h3>Evidence you can log, test, and inspect.</h3>
+            <a href="structured-results.md">Complete field-by-field reference <span aria-hidden="true">→</span></a>
+          </div>
+          <dl class="contract-list">
+            <div>
+              <dt><code>MatchResult</code></dt>
+              <dd><code>ok</code>, <code>found</code>, <code>score</code>, <code>threshold</code>, <code>location</code>, <code>scale</code>, <code>ambiguous</code>, <code>reason</code>, <code>candidates</code></dd>
+            </div>
+            <div>
+              <dt><code>ActionResult</code></dt>
+              <dd><code>ok</code>, <code>action</code>, <code>match</code>, optional <code>verification</code>, <code>reason</code>, <code>artifacts</code></dd>
+            </div>
+            <div>
+              <dt><code>VerificationResult</code></dt>
+              <dd><code>ok</code>, <code>expected_visible</code>, <code>observed_visible</code>, <code>match</code>, <code>reason</code></dd>
+            </div>
+          </dl>
+        </div>
+      </div>
+    </section>
+
+    <section class="section shell" id="safety">
+      <div class="section-heading">
+        <p class="kicker">Safety behavior</p>
+        <h2>Uncertain pixels produce zero actions.</h2>
+        <p>Structured actions fail closed. A refusal still returns useful evidence so you can improve the template or choose a safer fallback.</p>
+      </div>
+
+      <div class="safety-flow" aria-label="Safe action decision flow">
+        <article>
+          <span class="flow-badge">1</span>
+          <h3>Capture</h3>
+          <p>Take one fresh screenshot from the driver.</p>
+        </article>
+        <span class="flow-arrow" aria-hidden="true">→</span>
+        <article>
+          <span class="flow-badge">2</span>
+          <h3>Validate</h3>
+          <p>Require confidence and a clear winner.</p>
+        </article>
+        <span class="flow-arrow" aria-hidden="true">→</span>
+        <article class="safe">
+          <span class="flow-badge">3A</span>
+          <h3>Act</h3>
+          <p>Click or fill only when <code>match.ok</code> is true.</p>
+        </article>
+        <article class="refuse">
+          <span class="flow-badge">3B</span>
+          <h3>Refuse</h3>
+          <p>Return a reason. Do not touch the UI.</p>
+        </article>
+      </div>
+
+      <div class="safety-grid">
+        <article>
+          <h3><span aria-hidden="true">≠</span> Ambiguity rejection</h3>
+          <p>If another passing candidate falls within the default <code>0.02</code> score margin, the target is marked <code>ambiguous_match</code>. No action occurs.</p>
+        </article>
+        <article>
+          <h3><span aria-hidden="true">↓</span> Threshold gate</h3>
+          <p>A best candidate below <code>confidence</code> returns <code>below_threshold</code> with its score and bounds for diagnostics.</p>
+        </article>
+        <article>
+          <h3><span aria-hidden="true">◇</span> Invalid input handling</h3>
+          <p>Unreadable screenshots, invalid or flat templates, unusable scales, and matcher errors become explicit results—not accidental actions.</p>
+        </article>
+        <article>
+          <h3><span aria-hidden="true">✓</span> Optional verification</h3>
+          <p>Match a fresh screenshot after the action. You can require an image to appear or prove disappearance with a valid below-threshold result.</p>
+        </article>
+      </div>
+
+      <div class="warning-note">
+        <span class="warning-icon" aria-hidden="true">!</span>
+        <div>
+          <strong>Check <code>ok</code>, not only <code>found</code>.</strong>
+          <p><code>found</code> means the winner passed the score threshold. <code>ok</code> also means the winner was not made unsafe by a similarly scored, spatially distinct candidate.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section resources-section" id="resources">
+      <div class="shell">
+        <div class="section-heading split-heading">
+          <div>
+            <p class="kicker">Keep exploring</p>
+            <h2>Examples, details, and measurements.</h2>
+          </div>
+          <p>Everything here works from the repository. The example and benchmark generate their own deterministic images and require no browser or network.</p>
+        </div>
+
+        <div class="resource-grid">
+          <a class="resource-card" href="structured-results.md">
+            <span class="resource-label">Reference</span>
+            <h3>Structured results</h3>
+            <p>Full signatures, fields, reasons, refusal behavior, and verification flows.</p>
+            <span class="resource-link">Open reference <span aria-hidden="true">→</span></span>
+          </a>
+          <a class="resource-card" href="https://github.com/idejongkok/pyxelator/blob/main/examples/structured_results.py">
+            <span class="resource-label">Runnable example</span>
+            <h3>Offline structured flow</h3>
+            <p>Generate fixtures and exercise match, click, fill, and ambiguity refusal.</p>
+            <span class="resource-link">View example <span aria-hidden="true">↗</span></span>
+          </a>
+          <a class="resource-card" href="https://github.com/idejongkok/pyxelator/blob/main/benchmarks/benchmark_matching.py">
+            <span class="resource-label">Benchmark</span>
+            <h3>Compare match paths</h3>
+            <p>Measure legacy and structured matching with reproducible local inputs.</p>
+            <span class="resource-link">View benchmark <span aria-hidden="true">↗</span></span>
+          </a>
+        </div>
+
+        <div class="run-local">
+          <span>Run locally</span>
+          <code>python examples/structured_results.py</code>
+          <code>python benchmarks/benchmark_matching.py --iterations 20</code>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="shell footer-inner">
+      <div>
+        <a class="brand" href="#top">
+          <span class="brand-mark" aria-hidden="true"><span></span></span>
+          <span>Pyxelator</span>
+        </a>
+        <p>Pixel-based element location for web and mobile automation.</p>
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/idejongkok/pyxelator">Repository</a>
+        <a href="https://github.com/idejongkok/pyxelator/issues">Issues</a>
+        <a href="https://github.com/idejongkok/pyxelator/blob/main/LICENSE">MIT License</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>
